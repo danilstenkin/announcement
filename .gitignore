@@ -47,3 +47,6 @@ migrations/versions/__pycache__/
 
 # Docker
 *.pid
+
+
+.DS_Store
