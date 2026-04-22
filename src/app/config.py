@@ -1,0 +1,38 @@
+from pydantic_settings import BaseSettings
+from typing import Literal
+
+
+class Settings(BaseSettings):
+
+    DATABASE_URL: str
+
+    EVENTS_WEBHOOK_URL: str = ""
+
+    MINIO_ENDPOINT: str
+    MINIO_ACCESS_KEY: str
+    MINIO_SECRET_KEY: str
+    MINIO_BUCKET: str
+    MINIO_SECURE: bool = False
+
+    # File Upload
+    MAX_FILE_SIZE: int = 50 * 1024 * 1024  # 50 MB
+    ALLOWED_FILE_EXTENSIONS: list = [
+        "pdf", "doc", "docx", "xls", "xlsx", "txt",
+        "jpg", "jpeg", "png", "gif", "pptx",
+    ]
+
+    # App
+    APP_ENV: Literal["development", "staging", "production"] = "development"
+    DEBUG: bool = False
+
+    # API
+    API_TITLE: str = "Corporate Announcements API"
+    API_VERSION: str = "1.0.0"
+
+    class Config:
+        env_file = ".env"
+        case_sensitive = True
+        extra = "ignore"
+
+
+settings = Settings()

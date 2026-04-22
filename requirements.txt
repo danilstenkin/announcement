@@ -1,0 +1,14 @@
+alembic==1.18.4
+asyncpg==0.31.0
+fastapi==0.115.12
+loguru==0.7.3
+minio==7.2.9
+psycopg2-binary==2.9.11
+pydantic==2.12.5
+pydantic-settings==2.13.1
+python-multipart==0.0.21
+pytz==2025.2
+httpx==0.28.1
+SQLAlchemy==2.0.45
+uvicorn[standard]==0.34.2
+prometheus-fastapi-instrumentator==7.0.2

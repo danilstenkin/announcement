@@ -1,25 +1,16 @@
 from pydantic import BaseModel, Field, ConfigDict
 from typing import Optional, List, TYPE_CHECKING
 from datetime import datetime
-from enum import Enum
 from uuid import UUID
 
+from models.announcement import AnnouncementCategoryEnum
+
 if TYPE_CHECKING:
-    from app.models import Announcement
-
-
-class AnnouncementCategoryEnum(str, Enum):
-    """Announcement categories."""
-
-    TECH_QUESTION = "TECH_QUESTION"
-    CHANGE = "CHANGE"
-    NEW = "NEW"
-    REVOKED = "REVOKED"
+    from models.announcement import Announcement
 
 
 class AnnouncementBase(BaseModel):
     """Base announcement schema."""
-
     title: str = Field(..., min_length=1, max_length=255)
     category: AnnouncementCategoryEnum
     text: str = Field(..., min_length=1)
@@ -29,21 +20,17 @@ class AnnouncementBase(BaseModel):
     topic: Optional[str] = Field(None, max_length=255)
     resource_link: Optional[str] = Field(None, max_length=500)
     script_ru: Optional[str] = None
-    attachment_path: Optional[str] = Field(None, max_length=500, description="MinIO object key (set automatically)")
+    attachment_path: Optional[str] = Field(
+        None, max_length=500, description="MinIO object key (set automatically)"
+    )
 
 
 class AnnouncementCreate(AnnouncementBase):
     """Schema for creating an announcement."""
 
-    # is_hidden: bool = Field(
-    #     default=True,
-    #     description="If True, saves as draft (hidden). If False, publishes immediately.",
-    # )
-
 
 class AnnouncementUpdate(BaseModel):
     """Schema for updating an announcement."""
-
     title: Optional[str] = Field(None, min_length=1, max_length=255)
     category: Optional[AnnouncementCategoryEnum] = None
     text: Optional[str] = Field(None, min_length=1)
@@ -54,15 +41,10 @@ class AnnouncementUpdate(BaseModel):
     resource_link: Optional[str] = Field(None, max_length=500)
     script_ru: Optional[str] = None
     attachment_path: Optional[str] = Field(None, max_length=500)
-    # is_hidden: Optional[bool] = Field(
-    #     None,
-    #     description="Change visibility: True = draft/hidden, False = publish/visible",
-    # )
 
 
 class AnnouncementResponse(AnnouncementBase):
     """Schema for announcement response."""
-
     id: UUID
     is_hidden: bool
     is_revoked: bool
@@ -72,19 +54,14 @@ class AnnouncementResponse(AnnouncementBase):
     email: Optional[str] = None
     created_at: datetime
     updated_at: datetime
-    is_read: Optional[bool] = None  # Only for employee responses
+    is_read: Optional[bool] = None
 
     model_config = ConfigDict(from_attributes=True)
 
 
 class AnnouncementListResponse(AnnouncementBase):
-    """Schema for announcements list with read status.
+    """Schema for announcements list with read status."""
 
-    Inherits all base fields from AnnouncementBase.
-    text is overridden as Optional because it is hidden when the announcement is revoked.
-    """
-
-    # Override: text is hidden for revoked announcements
     text: Optional[str] = None
 
     id: UUID
@@ -94,7 +71,7 @@ class AnnouncementListResponse(AnnouncementBase):
     created_by: UUID
     created_at: datetime
     updated_at: datetime
-    is_read: Optional[bool] = None  # For employees
+    is_read: Optional[bool] = None
     username: Optional[str] = None
     email: Optional[str] = None
 
@@ -106,11 +83,6 @@ class AnnouncementListResponse(AnnouncementBase):
         announcement: "Announcement",
         is_read: Optional[bool],
     ) -> "AnnouncementListResponse":
-        """Build a list-response from an ORM Announcement and a read-status flag.
-
-        Centralises the mapping so routers do not duplicate field assignments.
-        text is set to None when the announcement is revoked.
-        """
         return cls(
             id=announcement.id,
             title=announcement.title,
@@ -143,7 +115,6 @@ class AnnouncementMonthResponse(BaseModel):
 
 class AnnouncementRevokeRequest(BaseModel):
     """Schema for revoking an announcement."""
-
     revoked_link: str = Field(
         ..., max_length=500, description="Link to the actual FAQ or resolution"
     )
@@ -151,7 +122,6 @@ class AnnouncementRevokeRequest(BaseModel):
 
 class RevokeResponse(BaseModel):
     """Response after revoking an announcement."""
-
     id: UUID
     title: str
     is_revoked: bool
@@ -160,7 +130,6 @@ class RevokeResponse(BaseModel):
 
 class UpdateResponse(BaseModel):
     """Response after updating an announcement."""
-
     id: UUID
     title: str
     changes: dict = Field(description="Fields that were changed and their new values")
@@ -170,14 +139,10 @@ class UpdateResponse(BaseModel):
 
 
 class MarkAsReadRequest(BaseModel):
-    """Schema for marking announcement as read."""
-
     is_read: bool
 
 
 class ReadStatusResponse(BaseModel):
-    """Schema for read status response."""
-
     user_id: UUID
     announcement_id: UUID
     is_read: bool
@@ -187,8 +152,6 @@ class ReadStatusResponse(BaseModel):
 
 
 class NotificationEvent(BaseModel):
-    """Schema for SSE notification event."""
-
     event_type: str = Field(
         ...,
         description="Event type: NEW_ANNOUNCEMENT, UPDATED_ANNOUNCEMENT, REVOKED_ANNOUNCEMENT",
@@ -201,17 +164,10 @@ class NotificationEvent(BaseModel):
 
 
 class UnreadCounterResponse(BaseModel):
-    """Schema for unread counter response."""
-
     unread_count: int
     announcement: List[AnnouncementListResponse]
 
 
-# ==================== Error Schemas ====================
-
-
 class ErrorResponse(BaseModel):
-    """Schema for error responses."""
-
     detail: str
     status_code: int

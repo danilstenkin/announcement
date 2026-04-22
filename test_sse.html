@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>SSE Test</title>
+    <style>
+        body { font-family: monospace; background: #1e1e1e; color: #d4d4d4; padding: 20px; }
+        h1 { color: #569cd6; }
+        #status { padding: 8px 16px; border-radius: 4px; display: inline-block; margin-bottom: 16px; }
+        .connected { background: #2d5a2d; color: #4ec94e; }
+        .disconnected { background: #5a2d2d; color: #e95454; }
+        #events { max-height: 500px; overflow-y: auto; }
+        .event { background: #2d2d2d; border-left: 3px solid #569cd6; padding: 10px; margin: 8px 0; }
+        .event .type { color: #dcdcaa; font-weight: bold; }
+        .event .time { color: #6a9955; font-size: 12px; }
+        .event .data { color: #ce9178; margin-top: 4px; white-space: pre-wrap; }
+        .NEW_ANNOUNCEMENT { border-left-color: #4ec94e; }
+        .UPDATED_ANNOUNCEMENT { border-left-color: #dcdcaa; }
+        .REVOKED_ANNOUNCEMENT { border-left-color: #e95454; }
+    </style>
+</head>
+<body>
+    <h1>SSE Announcements</h1>
+    <div id="status" class="disconnected">Disconnected</div>
+    <div id="events"></div>
+
+    <script>
+        const API = "http://localhost:8050/announce/sse/announcements";
+        const USER_ID = "95874398-5437-5894-3573-498537498543";
+
+        function connect() {
+            // EventSource не поддерживает кастомные заголовки,
+            // поэтому используем fetch + ReadableStream
+            fetch(API, {
+                headers: {
+                    "X-User-Id": USER_ID,
+                    "Accept": "text/event-stream"
+                }
+            }).then(response => {
+                setStatus(true);
+                const reader = response.body.getReader();
+                const decoder = new TextDecoder();
+                let buffer = "";
+
+                function read() {
+                    reader.read().then(({ done, value }) => {
+                        if (done) { setStatus(false); setTimeout(connect, 3000); return; }
+
+                        buffer += decoder.decode(value, { stream: true });
+                        const parts = buffer.split("\n\n");
+                        buffer = parts.pop();
+
+                        parts.forEach(part => {
+                            if (!part.trim()) return;
+
+                            let eventType = "message";
+                            let data = "";
+
+                            part.split("\n").forEach(line => {
+                                if (line.startsWith("event: ")) eventType = line.slice(7);
+                                if (line.startsWith("data: ")) data = line.slice(6);
+                            });
+
+                            if (data) addEvent(eventType, data);
+                        });
+
+                        read();
+                    });
+                }
+                read();
+            }).catch(() => {
+                setStatus(false);
+                setTimeout(connect, 3000);
+            });
+        }
+
+        function setStatus(ok) {
+            const el = document.getElementById("status");
+            el.textContent = ok ? "Connected" : "Disconnected";
+            el.className = ok ? "connected" : "disconnected";
+        }
+
+        function addEvent(type, data) {
+            const el = document.getElementById("events");
+            const time = new Date().toLocaleTimeString();
+            let pretty = data;
+            try { pretty = JSON.stringify(JSON.parse(data), null, 2); } catch {}
+
+            el.innerHTML = `<div class="event ${type}">
+                <span class="type">${type}</span>
+                <span class="time">${time}</span>
+                <div class="data">${pretty}</div>
+            </div>` + el.innerHTML;
+        }
+
+        connect();
+    </script>
+</body>
+</html>
