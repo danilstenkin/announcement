@@ -26,7 +26,7 @@ ENV PYTHONPATH=/app/src/app
 
 WORKDIR /app/src/app
 
-EXPOSE 8000
+EXPOSE 8004
 
 # Run migrations on startup, then the API
-CMD ["sh", "-c", "cd /app && alembic upgrade head && cd /app/src/app && uvicorn main:app --host 0.0.0.0 --port 8000"]
+CMD ["sh", "-c", "cd /app && alembic upgrade head && cd /app/src/app && uvicorn main:app --host 0.0.0.0 --port 8004 --workers 2"]

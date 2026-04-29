@@ -43,6 +43,18 @@ class AnnouncementUpdate(BaseModel):
     attachment_path: Optional[str] = Field(None, max_length=500)
 
 
+class AttachmentResponse(BaseModel):
+    """Schema for attachment response."""
+    id: UUID
+    filename: str
+    object_key: str
+    file_size: Optional[int] = None
+    content_type: Optional[str] = None
+    uploaded_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)
+
+
 class AnnouncementResponse(AnnouncementBase):
     """Schema for announcement response."""
     id: UUID
@@ -55,6 +67,7 @@ class AnnouncementResponse(AnnouncementBase):
     created_at: datetime
     updated_at: datetime
     is_read: Optional[bool] = None
+    attachments: List[AttachmentResponse] = []
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -74,6 +87,7 @@ class AnnouncementListResponse(AnnouncementBase):
     is_read: Optional[bool] = None
     username: Optional[str] = None
     email: Optional[str] = None
+    attachments: List[AttachmentResponse] = []
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -104,6 +118,10 @@ class AnnouncementListResponse(AnnouncementBase):
             created_at=announcement.created_at,
             updated_at=announcement.updated_at,
             is_read=is_read,
+            attachments=[
+                AttachmentResponse.model_validate(att)
+                for att in (announcement.attachments or [])
+            ],
         )
 
 
@@ -160,6 +178,9 @@ class NotificationEvent(BaseModel):
     message: str
     category: AnnouncementCategoryEnum
     announcement_id: UUID
+    topic: Optional[str] = None
+    product: Optional[str] = None
+    text: Optional[str] = None
     timestamp: datetime
 
 

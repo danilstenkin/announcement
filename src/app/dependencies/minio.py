@@ -1,8 +1,3 @@
-"""
-MinIO client for file storage.
-Handles file uploads to MinIO S3-compatible object storage.
-"""
-
 from minio import Minio
 from minio.error import S3Error
 
@@ -51,6 +46,7 @@ class MinIOClient:
             timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
             safe_filename = os.path.basename(filename)
             object_key = f"announcements/{announcement_id}/{timestamp}_{safe_filename}"
+
 
             file_size = len(file_content)
             self.client.put_object(

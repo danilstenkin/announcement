@@ -13,7 +13,7 @@ class Settings(BaseSettings):
     MINIO_SECRET_KEY: str
     MINIO_BUCKET: str
     MINIO_SECURE: bool = False
-
+    
     # File Upload
     MAX_FILE_SIZE: int = 50 * 1024 * 1024  # 50 MB
     ALLOWED_FILE_EXTENSIONS: list = [

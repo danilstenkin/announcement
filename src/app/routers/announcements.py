@@ -44,6 +44,7 @@ from services import AnnouncementsService, NotificationsService
 from sqlalchemy import desc, func, select
 
 from models.announcement import Announcement
+from models.attachments import Attachments
 
 logger = get_logger(__name__)
 
@@ -84,7 +85,7 @@ class CurrentUser:
     response_model=AnnouncementResponse,
     status_code=status.HTTP_201_CREATED,
     summary="Create announcement",
-    description="Create a new announcement with optional file attachment. TRAINING_CENTER only.",
+    description="Create a new announcement with optional file attachments. TRAINING_CENTER only.",
 )
 async def create_announcement(
     current_user: CurrentUser = Depends(CurrentUser),
@@ -97,21 +98,22 @@ async def create_announcement(
     instruction: Optional[str] = Form(None),
     topic: Optional[str] = Form(None),
     resource_link: Optional[str] = Form(None),
-    attachment: Optional[UploadFile] = File(None),
+    attachments: List[UploadFile] = File(default=[]),
     db: AsyncSession = Depends(get_db),
 ) -> AnnouncementResponse:
 
     service = AnnouncementsService(db)
 
-    file_content: Optional[bytes] = None
-    object_key: Optional[str] = None
+    uploaded_keys: List[str] = []
 
     try:
-        # ---------- 1) Validate & read file (if any) ----------
-        if attachment:
-            logger.info(f"File upload detected: {attachment.filename}")
+        # ---------- 1) Validate all files ----------
+        validated_files: List[tuple[UploadFile, bytes]] = []
 
-            file_content = await attachment.read()
+        for file in attachments:
+            logger.info(f"File upload detected: {file.filename}")
+
+            file_content = await file.read()
             file_size = len(file_content)
             logger.info(f"File size: {file_size / 1024:.2f} KB")
 
@@ -119,17 +121,16 @@ async def create_announcement(
                 raise HTTPException(
                     status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
                     detail=(
-                        f"File size exceeds maximum allowed size of "
+                        f"File '{file.filename}' exceeds maximum allowed size of "
                         f"{settings.MAX_FILE_SIZE / 1024 / 1024}MB"
                     ),
                 )
 
             file_ext = (
-                attachment.filename.rsplit(".", 1)[-1].lower()
-                if attachment.filename and "." in attachment.filename
+                file.filename.rsplit(".", 1)[-1].lower()
+                if file.filename and "." in file.filename
                 else ""
             )
-            logger.info(f"File extension: .{file_ext}")
 
             if file_ext not in settings.ALLOWED_FILE_EXTENSIONS:
                 raise HTTPException(
@@ -140,9 +141,11 @@ async def create_announcement(
                     ),
                 )
 
-            logger.info(f"File validation passed: {attachment.filename}")
-        else:
-            logger.info("No file attachment in request")
+            validated_files.append((file, file_content))
+            logger.info(f"File validation passed: {file.filename}")
+
+        if not validated_files:
+            logger.info("No file attachments in request")
 
         # ---------- 2) Create announcement in DB (flush inside service) ----------
         announcement_data = AnnouncementCreate(
@@ -168,21 +171,33 @@ async def create_announcement(
             f"by user {current_user.id}"
         )
 
-        # ---------- 3) Upload file to MinIO (if any), then set path in DB ----------
-        if attachment and file_content:
-            logger.info(
-                f"Starting file upload to MinIO for announcement {announcement.id}..."
-            )
+        # ---------- 3) Upload files to MinIO & create Attachments records ----------
+        if validated_files:
             minio_client = get_minio_client()
 
-            object_key = await minio_client.upload_file(
-                file_content=file_content,
-                filename=attachment.filename,
-                announcement_id=str(announcement.id),
-            )
-            logger.info(f"File uploaded successfully: {object_key}")
+            for file, file_content in validated_files:
+                logger.info(
+                    f"Uploading file '{file.filename}' to MinIO "
+                    f"for announcement {announcement.id}..."
+                )
+                object_key = await minio_client.upload_file(
+                    file_content=file_content,
+                    filename=file.filename,
+                    announcement_id=str(announcement.id),
+                )
+                uploaded_keys.append(object_key)
+                logger.info(f"File uploaded successfully: {object_key}")
 
-            announcement.attachment_path = object_key
+                attachment_record = Attachments(
+                    announcement_id=announcement.id,
+                    filename=file.filename,
+                    object_key=object_key,
+                    file_size=len(file_content),
+                    content_type=file.content_type,
+                )
+                db.add(attachment_record)
+
+            await db.flush()
 
         # ---------- 4) Commit ONCE ----------
         await db.commit()
@@ -203,14 +218,14 @@ async def create_announcement(
     except Exception as e:
         await db.rollback()
 
-        if object_key:
+        for key in uploaded_keys:
             try:
                 minio_client = get_minio_client()
-                minio_client.client.remove_object(minio_client.bucket_name, object_key)
-                logger.info(f"Cleaned up MinIO object after DB failure: {object_key}")
+                minio_client.client.remove_object(minio_client.bucket_name, key)
+                logger.info(f"Cleaned up MinIO object after failure: {key}")
             except Exception as cleanup_err:
                 logger.warning(
-                    f"Failed to cleanup MinIO object {object_key}: {cleanup_err}"
+                    f"Failed to cleanup MinIO object {key}: {cleanup_err}"
                 )
 
         logger.error(f"Error creating announcement: {e}")
@@ -335,49 +350,43 @@ async def get_announcement(
             detail=f"Announcement {announcement_id} not found",
         )
 
-    response = AnnouncementResponse.model_validate(announcement)
-    data = response.model_dump()
-
-    data["attachment_path"] = (
-        f"/announcements/{announcement.id}/attachment"
-        if announcement.attachment_path
-        else None
-    )
-
-    return AnnouncementResponse(**data)
+    return AnnouncementResponse.model_validate(announcement)
 
 
 # ==================== DOWNLOAD ATTACHMENT ====================
 
 
 @router.get(
-    "/{announcement_id}/attachment",
+    "/{announcement_id}/attachments/{attachment_id}",
     summary="Download announcement attachment",
-    description="Download attachment file for an announcement.",
+    description="Download a specific attachment file by its ID.",
 )
 async def download_attachment(
     announcement_id: UUID,
+    attachment_id: UUID,
     current_user: CurrentUser = Depends(CurrentUser),
     db: AsyncSession = Depends(get_db),
 ):
-    service = AnnouncementsService(db)
-    announcement = await service.get_announcement_by_id(announcement_id)
+    result = await db.execute(
+        select(Attachments).where(
+            Attachments.id == attachment_id,
+            Attachments.announcement_id == announcement_id,
+        )
+    )
+    attachment = result.scalar_one_or_none()
 
-    if not announcement or not announcement.attachment_path:
+    if not attachment:
         raise HTTPException(status_code=404, detail="Attachment not found")
 
     try:
         minio_client = get_minio_client()
         obj = minio_client.client.get_object(
             minio_client.bucket_name,
-            announcement.attachment_path,
+            attachment.object_key,
         )
 
-        filename = announcement.attachment_path.split("/")[-1]
-        media_type, _ = mimetypes.guess_type(filename)
-        media_type = media_type or "application/octet-stream"
-
-        quoted = quote(filename)
+        media_type = attachment.content_type or "application/octet-stream"
+        quoted = quote(attachment.filename)
 
         return StreamingResponse(
             obj,
@@ -388,7 +397,7 @@ async def download_attachment(
         )
 
     except Exception as e:
-        logger.error(f"Failed to download attachment for {announcement_id}: {e}")
+        logger.error(f"Failed to download attachment {attachment_id}: {e}")
         raise HTTPException(status_code=404, detail="Attachment not found")
 
 
@@ -399,12 +408,27 @@ async def download_attachment(
     "/{announcement_id}",
     response_model=UpdateResponse,
     summary="Update announcement",
-    description="Update an announcement. TRAINING_CENTER only. Only active (non-revoked) announcements.",
+    description=(
+        "Update an announcement. TRAINING_CENTER only. "
+        "Supports adding new files and deleting existing ones."
+    ),
 )
 async def update_announcement(
     announcement_id: UUID,
-    update_data: AnnouncementUpdate,
     current_user: CurrentUser = Depends(CurrentUser),
+    title: Optional[str] = Form(None),
+    category: Optional[str] = Form(None),
+    text: Optional[str] = Form(None),
+    script_kz: Optional[str] = Form(None),
+    script_ru: Optional[str] = Form(None),
+    product: Optional[str] = Form(None),
+    instruction: Optional[str] = Form(None),
+    topic: Optional[str] = Form(None),
+    resource_link: Optional[str] = Form(None),
+    delete_attachment_ids: Optional[str] = Form(
+        None, description="Comma-separated attachment UUIDs to delete"
+    ),
+    new_attachments: List[UploadFile] = File(default=[]),
     db: AsyncSession = Depends(get_db),
 ) -> UpdateResponse:
     service = AnnouncementsService(db)
@@ -416,26 +440,142 @@ async def update_announcement(
             detail=f"Announcement {announcement_id} not found",
         )
 
-    updated_announcement, changes = await service.update_announcement(
-        announcement, update_data
-    )
+    uploaded_keys: List[str] = []
 
-    await db.commit()
-    await db.refresh(updated_announcement)
+    try:
+        # ---------- 1) Update text fields ----------
+        update_data = AnnouncementUpdate(
+            title=title,
+            category=category,
+            text=text,
+            script_kz=script_kz,
+            script_ru=script_ru,
+            product=product,
+            instruction=instruction,
+            topic=topic,
+            resource_link=resource_link,
+        )
 
-    if changes:
-        notifications_service = NotificationsService(settings.EVENTS_WEBHOOK_URL)
-        await notifications_service.publish_updated_announcement(updated_announcement)
+        updated_announcement, changes = await service.update_announcement(
+            announcement, update_data
+        )
 
-    return UpdateResponse(
-        id=updated_announcement.id,
-        title=updated_announcement.title,
-        changes=changes,
-    )
+        # ---------- 2) Delete attachments ----------
+        keys_to_delete: List[str] = []
+
+        if delete_attachment_ids:
+            ids_to_delete = [
+                s.strip() for s in delete_attachment_ids.split(",") if s.strip()
+            ]
+
+            for att in list(announcement.attachments or []):
+                if str(att.id) in ids_to_delete:
+                    keys_to_delete.append(att.object_key)
+                    await db.delete(att)
+                    logger.info(f"Deleted attachment record: {att.id}")
+
+            if keys_to_delete:
+                changes["attachments_deleted"] = (len(keys_to_delete), None)
+
+            await db.flush()
+
+        # ---------- 3) Validate & upload new files ----------
+        if new_attachments:
+            minio_client = get_minio_client()
+
+            for file in new_attachments:
+                file_content = await file.read()
+                file_size = len(file_content)
+
+                if file_size > settings.MAX_FILE_SIZE:
+                    raise HTTPException(
+                        status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+                        detail=(
+                            f"File '{file.filename}' exceeds maximum allowed size of "
+                            f"{settings.MAX_FILE_SIZE / 1024 / 1024}MB"
+                        ),
+                    )
+
+                file_ext = (
+                    file.filename.rsplit(".", 1)[-1].lower()
+                    if file.filename and "." in file.filename
+                    else ""
+                )
+                if file_ext not in settings.ALLOWED_FILE_EXTENSIONS:
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail=(
+                            f"File extension .{file_ext} not allowed. "
+                            f"Allowed: {', '.join(settings.ALLOWED_FILE_EXTENSIONS)}"
+                        ),
+                    )
+
+                object_key = await minio_client.upload_file(
+                    file_content=file_content,
+                    filename=file.filename,
+                    announcement_id=str(announcement_id),
+                )
+                uploaded_keys.append(object_key)
+
+                attachment_record = Attachments(
+                    announcement_id=announcement_id,
+                    filename=file.filename,
+                    object_key=object_key,
+                    file_size=file_size,
+                    content_type=file.content_type,
+                )
+                db.add(attachment_record)
+                logger.info(f"Added new attachment: {file.filename}")
+
+            changes["attachments_added"] = (len(new_attachments), None)
+            await db.flush()
+
+        # ---------- 4) Commit ----------
+        await db.commit()
+        await db.refresh(updated_announcement)
+
+        # ---------- 5) Cleanup deleted files from MinIO (after commit) ----------
+        if keys_to_delete:
+            minio_client = get_minio_client()
+            for key in keys_to_delete:
+                try:
+                    await minio_client.delete_file(key)
+                except Exception as e:
+                    logger.warning(f"Failed to delete MinIO object {key}: {e}")
+
+        # ---------- 6) Notify ----------
+        if changes:
+            notifications_service = NotificationsService(settings.EVENTS_WEBHOOK_URL)
+            await notifications_service.publish_updated_announcement(updated_announcement)
+
+        return UpdateResponse(
+            id=updated_announcement.id,
+            title=updated_announcement.title,
+            changes=changes,
+        )
+
+    except HTTPException:
+        await db.rollback()
+        raise
+
+    except Exception as e:
+        await db.rollback()
+
+        for key in uploaded_keys:
+            try:
+                minio_client = get_minio_client()
+                minio_client.client.remove_object(minio_client.bucket_name, key)
+            except Exception:
+                pass
+
+        logger.error(f"Error updating announcement: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to update announcement: {str(e)}",
+        )
 
 
 # ==================== REVOKE ANNOUNCEMENT ====================
-
 
 @router.post(
     "/{announcement_id}/revoke",
@@ -551,22 +691,29 @@ async def delete_announcement(
     )
 
     # Сохраняем данные до удаления для уведомления
-    title = announcement.title
-    category = announcement.category
-    ann_id = announcement.id
+    from types import SimpleNamespace
+    deleted = SimpleNamespace(
+        id=announcement.id,
+        title=announcement.title,
+        category=announcement.category,
+        topic=announcement.topic,
+        product=announcement.product,
+        text=announcement.text,
+    )
+
+    # Собираем ключи вложений до удаления
+    attachment_keys = [att.object_key for att in (announcement.attachments or [])]
 
     await service.delete_announcement(announcement_id)
     await db.commit()
 
     notifications_service = NotificationsService(settings.EVENTS_WEBHOOK_URL)
-    # Создаём временный объект для уведомления
-    from types import SimpleNamespace
-    deleted = SimpleNamespace(id=ann_id, title=title, category=category)
 
-    if announcement.attachment_path:
+    if attachment_keys:
         minio = get_minio_client()
-        await minio.delete_file(announcement.attachment_path)
-        
+        for key in attachment_keys:
+            await minio.delete_file(key)
+
     await notifications_service.publish_deleted_announcement(deleted)
 
     return None

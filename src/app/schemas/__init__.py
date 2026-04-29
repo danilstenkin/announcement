@@ -6,6 +6,7 @@ from schemas.announcement import (
     AnnouncementListResponse,
     AnnouncementMonthResponse,
     AnnouncementRevokeRequest,
+    AttachmentResponse,
     RevokeResponse,
     UpdateResponse,
     MarkAsReadRequest,

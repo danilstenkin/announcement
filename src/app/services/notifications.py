@@ -5,6 +5,7 @@ Sends announcement events via HTTP webhook.
 
 import json
 from datetime import datetime, timezone
+from pydoc import text
 
 import httpx
 
@@ -28,6 +29,9 @@ class NotificationsService:
             message=f"Новый анонс! «{announcement.title}»",
             category=announcement.category,
             announcement_id=announcement.id,
+            topic=announcement.topic,
+            product=announcement.product,
+            text=announcement.text,
             timestamp=datetime.now(timezone.utc),
         )
         await self._send_event(notification)
@@ -43,6 +47,9 @@ class NotificationsService:
             message=f"Внимание! Изменения в анонсе «{announcement.title}»",
             category=announcement.category,
             announcement_id=announcement.id,
+            topic=announcement.topic,
+            product=announcement.product,
+            text=announcement.text,
             timestamp=datetime.now(timezone.utc),
         )
         await self._send_event(notification)
@@ -58,6 +65,9 @@ class NotificationsService:
             message=f"Внимание! Анонс «{announcement.title}» больше не действует",
             category=announcement.category,
             announcement_id=announcement.id,
+            topic=announcement.topic,
+            product=announcement.product,
+            text=announcement.text,
             timestamp=datetime.now(timezone.utc),
         )
         await self._send_event(notification)
@@ -73,6 +83,9 @@ class NotificationsService:
             message=f"Анонс «{announcement.title}» был удалён",
             category=announcement.category,
             announcement_id=announcement.id,
+            topic=announcement.topic,
+            product=announcement.product,
+            text=announcement.text,
             timestamp=datetime.now(timezone.utc),
         )
         await self._send_event(notification)

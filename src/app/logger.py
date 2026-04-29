@@ -8,9 +8,9 @@ logger.remove()
 logger.add(
     sys.stdout,
     format="<green>{time:YYYY-MM-DD HH:mm:ss}</green> | "
-           "<level>{level: <4}</level> | "
-           "<cyan>{name}</cyan>:<cyan>{function}</cyan>:<cyan>{line}</cyan> | "
-           "<level>{message}</level>",
+            "<level>{level: <4}</level> | "
+            "<cyan>{name}</cyan>:<cyan>{function}</cyan>:<cyan>{line}</cyan> | "
+            "<level>{message}</level>",
     level="DEBUG",
     colorize=True,
 )
@@ -24,7 +24,7 @@ logger.add(
     compression="zip",    # Старые логи сжимать
     encoding="utf-8",
 )
- 
- 
+
+
 def get_logger(name: str):
     return logger.bind(name=name)

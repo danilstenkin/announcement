@@ -64,9 +64,7 @@ app.add_middleware(
 
 
 # ==================== Routes ====================
-
 from routers import router  # noqa: E402
-
 app.include_router(router)
 
 # Prometheus metrics — экспортирует /metrics эндпоинт
@@ -76,8 +74,6 @@ Instrumentator(
 
 
 # ==================== Health Check ====================
-
-
 @app.get(
     "/health",
     tags=["health"],
@@ -93,8 +89,6 @@ async def health_check():
 
 
 # ==================== Root ====================
-
-
 @app.get(
     "/",
     tags=["root"],
@@ -112,8 +106,6 @@ async def root():
 
 
 # ==================== Exception Handlers ====================
-
-
 @app.exception_handler(HTTPException)
 async def http_exception_handler(request, exc):
     return JSONResponse(
@@ -128,7 +120,7 @@ if __name__ == "__main__":
     uvicorn.run(
         "main:app",
         host="0.0.0.0",
-        port=8000,
+        port=8004,
         reload=settings.DEBUG,
         log_level="info",
     )

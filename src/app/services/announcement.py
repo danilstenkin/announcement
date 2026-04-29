@@ -105,7 +105,7 @@ class AnnouncementsService:
         self,
         user_id: UUID,
         month: Optional[str] = None,
-    ) -> List[Tuple[Announcement, Optional[bool]]]:
+    ) -> List[Tuple[Announcement, Optional[bool]]]: 
         ars = aliased(AnnouncementReadStatus)
 
         stmt = (
@@ -287,7 +287,7 @@ class AnnouncementsService:
         if announcement:
             await self.db.delete(announcement)
             await self.db.flush()
-   
+
 
 
             logger.log("EVENT", f"Announcement {announcement_id} deleted from DB")

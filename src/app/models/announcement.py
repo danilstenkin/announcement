@@ -48,6 +48,13 @@ class Announcement(Base):
     created_at = Column(DateTime(timezone=True), default=get_astana_time, nullable=False)
     updated_at = Column(DateTime(timezone=True), default=get_astana_time, onupdate=get_astana_time, nullable=False)
 
+    attachments = relationship(
+        "Attachments",
+        back_populates="announcement",
+        cascade="all, delete-orphan",
+        lazy="selectin",
+    )
+
     read_statuses = relationship(
         "AnnouncementReadStatus",
         back_populates="announcement",
