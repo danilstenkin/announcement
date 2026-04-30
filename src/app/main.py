@@ -14,6 +14,7 @@ from prometheus_fastapi_instrumentator import Instrumentator
 from config import settings
 from dependencies.database import engine
 from dependencies.minio import init_minio
+from dependencies.gpt import GPTConfig, GPTClient
 from logger import get_logger
 
 logger = get_logger(__name__)
@@ -26,6 +27,9 @@ async def lifespan(app: FastAPI):
 
     init_minio()
     logger.info(f"MinIO connected: {settings.MINIO_ENDPOINT}")
+
+    app.state.gpt = GPTClient(GPTConfig())
+    logger.info(f"GPT client initialized")
 
     yield
 
@@ -67,10 +71,7 @@ app.add_middleware(
 from routers import router  # noqa: E402
 app.include_router(router)
 
-# Prometheus metrics — экспортирует /metrics эндпоинт
-Instrumentator(
-    excluded_handlers=["/metrics"],
-).instrument(app).expose(app, endpoint="/metrics", tags=["monitoring"])
+
 
 
 # ==================== Health Check ====================
@@ -81,6 +82,17 @@ Instrumentator(
     description="Check if API is running",
 )
 async def health_check():
+
+    gpt = await app.state.gpt.format_email(
+        email_body="Привет",
+        template="ответь",
+        prompt="привет"
+
+    )
+
+    print(gpt)
+
+    # helth()
     return {
         "status": "healthy",
         "version": settings.API_VERSION,
@@ -96,6 +108,7 @@ async def health_check():
     description="Get API information",
 )
 async def root():
+
     return {
         "name": settings.API_TITLE,
         "version": settings.API_VERSION,
@@ -123,4 +136,5 @@ if __name__ == "__main__":
         port=8004,
         reload=settings.DEBUG,
         log_level="info",
+
     )
