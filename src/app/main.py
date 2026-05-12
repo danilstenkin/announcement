@@ -3,6 +3,7 @@ Main FastAPI application.
 Initializes the app, configures routes, and middleware.
 """
 
+import asyncio
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, HTTPException
@@ -15,6 +16,7 @@ from config import settings
 from dependencies.database import engine
 from dependencies.minio import init_minio
 from dependencies.gpt import GPTConfig, GPTClient
+from workers.outlook_worker import run_email_watcher
 from logger import get_logger
 
 logger = get_logger(__name__)
@@ -25,6 +27,9 @@ async def lifespan(app: FastAPI):
     logger.info(f"Starting API... ENV={settings.APP_ENV}")
     logger.info("Database tables managed by Alembic migrations")
 
+    watcher_task = asyncio.create_task(run_email_watcher())
+    logger.info("Email watcher started")
+
     init_minio()
     logger.info(f"MinIO connected: {settings.MINIO_ENDPOINT}")
 
@@ -32,6 +37,14 @@ async def lifespan(app: FastAPI):
     logger.info(f"GPT client initialized")
 
     yield
+
+    watcher_task.cancel()
+    try:
+        await watcher_task
+    except asyncio.CancelledError:
+        pass
+    logger.info("Email watcher stoped")
+
 
     await engine.dispose()
     logger.info("Shutting down API...")

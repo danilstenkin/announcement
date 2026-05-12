@@ -21,6 +21,11 @@ class Settings(BaseSettings):
         "jpg", "jpeg", "png", "gif", "pptx",
     ]
 
+    IMAP_HOST: str = ""
+    IMAP_USER: str = ""
+    IMAP_PASSWORD: str = ""
+    IMAP_FOLDER: str = ""
+    IMAP_IDLE_TIMEOUT: int = 100
     # App
     APP_ENV: Literal["development", "staging", "production"] = "development"
     DEBUG: bool = False

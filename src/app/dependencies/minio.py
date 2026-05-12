@@ -106,6 +106,5 @@ def get_minio_client() -> MinIOClient:
     return _minio_client
 
 
-# Backward-compatible aliases used elsewhere in the codebase
 def get_minio() -> MinIOClient:
     return get_minio_client()
