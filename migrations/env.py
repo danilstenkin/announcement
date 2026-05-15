@@ -1,44 +1,66 @@
 from logging.config import fileConfig
+import os
+import sys
 
 from sqlalchemy import engine_from_config
 from sqlalchemy import pool
-import sqlalchemy as sa  # Нужен для sa.text() — выполнение raw SQL
-
 from alembic import context
 
-# Объект конфигурации Alembic — читает настройки из alembic.ini
 config = context.config
 
-# Настройка логирования из alembic.ini
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
-# Добавляем путь к моделям в sys.path, чтобы Alembic мог их импортировать
-import sys, os
-sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(__file__)), "src", "app"))
-from models.base import Base
+sys.path.insert(
+    0,
+    os.path.join(os.path.dirname(os.path.dirname(__file__)), "src", "app"),
+)
 
-# target_metadata — Alembic сравнивает метаданные моделей с текущим состоянием БД
-# и на основе разницы генерирует миграции (autogenerate)
+from models.base import Base
+import models  # noqa: F401
+
+
+MANAGED_SCHEMA = "cchub_announcements"
+
 target_metadata = Base.metadata
 
-# Если задана переменная окружения DATABASE_URL — используем её вместо alembic.ini
-# Заменяем asyncpg на psycopg2, т.к. Alembic работает синхронно
 db_url = os.environ.get("DATABASE_URL")
 if db_url:
     db_url = db_url.replace("+asyncpg", "+psycopg2")
     config.set_main_option("sqlalchemy.url", db_url)
 
 
+def include_name(name, type_, parent_names):
+    if type_ == "schema":
+        return name == MANAGED_SCHEMA
+
+    if type_ == "table":
+        return parent_names.get("schema_name") == MANAGED_SCHEMA
+
+    return True
+
+
+def include_object(object, name, type_, reflected, compare_to):
+      # Не удаляем таблицы, которые уже есть в БД, но не описаны в SQLAlchemy models.
+      # Это защищает чужие таблицы вроде chat_messages, messages_feedback и view-зависимости.
+    if type_ == "table" and reflected and compare_to is None:
+        return False
+
+    return True
+
+
 def run_migrations_offline() -> None:
-    """Офлайн-режим: генерирует SQL без подключения к БД.
-    Полезно для ревью миграций или применения вручную."""
     url = config.get_main_option("sqlalchemy.url")
+
     context.configure(
         url=url,
         target_metadata=target_metadata,
         literal_binds=True,
         dialect_opts={"paramstyle": "named"},
+        include_schemas=True,
+        include_name=include_name,
+        include_object=include_object,
+        version_table_schema=MANAGED_SCHEMA,
     )
 
     with context.begin_transaction():
@@ -46,7 +68,6 @@ def run_migrations_offline() -> None:
 
 
 def run_migrations_online() -> None:
-    """Онлайн-режим: подключается к БД и применяет миграции напрямую."""
     connectable = engine_from_config(
         config.get_section(config.config_ini_section, {}),
         prefix="sqlalchemy.",
@@ -54,24 +75,19 @@ def run_migrations_online() -> None:
     )
 
     with connectable.connect() as connection:
-        # Создаём схему если её нет — без этого CREATE TABLE упадёт,
-        # т.к. PostgreSQL не создаёт схемы автоматически
-        # connection.execute(sa.text("CREATE SCHEMA IF NOT EXISTS cchub_announcements"))
-        # connection.commit()
-
-        # Связываем соединение с метаданными моделей
         context.configure(
             connection=connection,
             target_metadata=target_metadata,
-            version_table_schema="cchub_announcements",
+            version_table_schema=MANAGED_SCHEMA,
+            include_schemas=True,
+            include_name=include_name,
+            include_object=include_object,
         )
 
-        # Выполняем все миграции внутри транзакции
         with context.begin_transaction():
             context.run_migrations()
 
 
-# Выбираем режим запуска — офлайн или онлайн
 if context.is_offline_mode():
     run_migrations_offline()
 else:

@@ -1,5 +1,6 @@
 from __future__ import annotations
 import asyncio
+import json as _json
 from dataclasses import dataclass
 import httpx
 from config import settings
@@ -28,8 +29,8 @@ class GPTEmptyResponseError(GPTError):
 @dataclass(frozen=True)
 class GPTConfig:
     base_url: str = settings.GPT_URL
-    model: str = "gpt-4o-mini"
-    timeout: float = 30.0
+    model: str = "gpt-4.1-mini"
+    timeout: float = 60.0
     max_retries: int = 3
     retry_backoff: float = 0.5
 
@@ -66,23 +67,56 @@ class GPTClient:
         temperature: float = 0.3,
         max_tokens: int = 80000,
     ) -> str:
-        system_content = (
-            f"{prompt}\n\n"
-            f"Используй следующий шаблон для ответа:\n{template}"
-        )
-
         payload = {
             "model": self._config.model,
             "input": [
-                {"role": "assistant", "content": system_content},
+                {"role": "system", "content": prompt},
                 {"role": "user", "content": email_body},
             ],
             "temperature": temperature,
+            "text": {
+                "format": {
+                    "type": "json_schema",
+                    "name": "email_analysis",
+                    "schema": {
+                        "type": "object",
+                        "properties": {
+                            "title": {
+                                "type": "string",
+                                "description": "Краткий заголовок анонса (без Markdown)",
+                            },
+                            "ai_email": {
+                                "type": "string",
+                                "description": "Тело анонса с Markdown-разметкой (без заголовка)",
+                            },
+                            "script_ru": {
+                                "type": ["string", "null"],
+                                "description": "Скрипт оператора на русском или null",
+                            },
+                            "script_kz": {
+                                "type": ["string", "null"],
+                                "description": "Скрипт оператора на казахском или null",
+                            },
+                        },
+                        "required": ["title", "ai_email", "script_ru", "script_kz"],
+                        "additionalProperties": False,
+                    },
+                    "strict": True,
+                },
+            },
         }
         if max_tokens is not None:
             payload["max_output_tokens"] = max_tokens
 
+        # ── Дамп payload и response в файл для отладки ──
+        dump_path = "gpt_debug.json"
+
         data = await self._post_with_retry("/chat/completions", payload)
+
+        with open(dump_path, "w", encoding="utf-8") as f:
+            _json.dump({"request": payload, "response": data}, f, ensure_ascii=False, indent=2)
+
+        logger.info("GPT debug dumped to {path}", path=dump_path)
 
         if data.get("error"):
             raise GPTAPIError(400, str(data["error"]))

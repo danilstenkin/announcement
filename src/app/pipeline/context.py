@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import datetime
+from tkinter import N
 from uuid import UUID
 
 from models.incoming_emails import EmailStatusEnum
@@ -27,12 +28,13 @@ class PipelineContext:
     is_duplicate: bool = False                  # дубликат по message_id
 
     # ── Шаг 2: analyze (GPT + Weaviate) ─────────────────
-    summary: str | None = None                  # краткое содержание от GPT
-    confidence_score: float | None = None       # уверенность ИИ (0.0–1.0)
-    ai_reasoning: str | None = None             # почему ИИ так решил
-    suggested_announcement: str | None = None   # предложенный текст анонса
+    ai_email: str | None = None                  # краткое содержание от GPT
+    ai_title: str | None = None                   # Ai тема письма
     in_knowledge_base: bool | None = None       # есть ли в ForteKnowledge
-    analysis_db_id: UUID | None = None          # ID записи в email_analysis
+    ai_emails_db_id: UUID | None = None          # ID записи в email_analysis
+    script_ru: str | None = None
+    script_kz: str | None = None
+
 
     # ── Шаг 3: route ────────────────────────────────────
     status: EmailStatusEnum | None = None       # GREEN / RED / YELLOW

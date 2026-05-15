@@ -37,6 +37,12 @@ class Settings(BaseSettings):
     API_TITLE: str = "Corporate Announcements API"
     API_VERSION: str = "1.0.0"
 
+    #WEAVIATE
+    WEAVIATE_HOST: str
+    WEAVIATE_PORT: str
+    WEAVIATE_GRPS: str
+
+
     class Config:
         env_file = ".env"
         case_sensitive = True
