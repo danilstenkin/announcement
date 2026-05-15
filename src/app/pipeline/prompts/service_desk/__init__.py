@@ -1,13 +1,17 @@
 from pipeline.prompts.service_desk.forteSpaceBPM import PROMPT_BPM
 from pipeline.prompts.service_desk.compass import PROMPT_COMPASS
 from pipeline.prompts.service_desk.mib import PROMPT_MIB
+from pipeline.prompts.service_desk.colvir import PROMPT_COLVIR
+from pipeline.prompts.service_desk.default import PROMPT_DEFAULT
 
 import re
 
 _SYSTEM_PROMT = [
     ("ForteSpace BPM", PROMPT_BPM),
     ("compass", PROMPT_COMPASS),
-    ("Мобильный Интернет Банкинг Физических лиц 3.0", PROMPT_MIB)
+    ("Мобильный Интернет Банкинг Физических лиц 3.0", PROMPT_MIB),
+    ("абис", PROMPT_COLVIR),
+
 ]
 
 def extract_system(text: str) -> str | None:
