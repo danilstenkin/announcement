@@ -23,17 +23,17 @@ BASE_RULES = """Правила:
 HTML-разметка для ai_email:
   - <b>жирный</b> для дат, времени, названий систем
   - НЕ используй <ul><li> для списков. Вместо этого используй <p>· элемент</p> для каждого пункта
-  - <h2> для заголовков секций
+  - <h2 style="font-size: 1.4em; margin: 0 0 8px 0;"> для заголовков секций (крупный шрифт)
   - <p> для абзацев
   - <br> для переноса строки
   - Добавляй <br> между смысловыми блоками для визуальных отступов
   - Используй стилизованные блоки для визуального выделения:
 
 Стили для блоков:
-  - Критичное (авария, недоступность): <div style="background: #FFF0F0; border-left: 4px solid #E53935; padding: 12px 16px; border-radius: 6px; margin: 8px 0;">содержимое</div>
-  - Положительное (устранено, восстановлено): <div style="background: #F0FFF0; border-left: 4px solid #43A047; padding: 12px 16px; border-radius: 6px; margin: 8px 0;">содержимое</div>
-  - Предупреждение (плановые работы, ограничения): <div style="background: #FFF8E1; border-left: 4px solid #FB8C00; padding: 12px 16px; border-radius: 6px; margin: 8px 0;">содержимое</div>
-  - Информационное (описание, сервисы): <div style="background: #F0F4FF; border-left: 4px solid #1E88E5; padding: 12px 16px; border-radius: 6px; margin: 8px 0;">содержимое</div>
+  - Критичное (авария, недоступность): <div style="background: #FFF0F0; border-left: 4px solid #E53935; padding: 12px 16px; border-radius: 6px; margin: 4px 0;">содержимое</div>
+  - Положительное (устранено, восстановлено): <div style="background: #F0FFF0; border-left: 4px solid #43A047; padding: 12px 16px; border-radius: 6px; margin: 4px 0;">содержимое</div>
+  - Предупреждение (плановые работы, ограничения): <div style="background: #FFF8E1; border-left: 4px solid #FB8C00; padding: 12px 16px; border-radius: 6px; margin: 4px 0;">содержимое</div>
+  - Информационное (описание, сервисы): <div style="background: #F0F4FF; border-left: 4px solid #1E88E5; padding: 12px 16px; border-radius: 6px; margin: 4px 0;">содержимое</div>
 
 Стили для текста:
   - Forte Magenta для критичного: <span style="color: #A31551; font-weight: bold;">текст</span>

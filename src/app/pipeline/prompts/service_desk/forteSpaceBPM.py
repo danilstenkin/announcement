@@ -19,23 +19,23 @@ PROMPT_BPM = f"""Ты — ИИ-информатор входящих писем 
 Шаблон title: Технические работы в ForteSpace BPM
 
 Шаблон ai_email:
-<div style="background: #FFF8E1; border-left: 4px solid #FB8C00; padding: 12px 16px; border-radius: 6px; margin: 8px 0;">
-<h2><span style="color: #E65100; font-weight: bold;">Плановые работы</span></h2>
+<div style="background: #FFF8E1; border-left: 4px solid #FB8C00; padding: 12px 16px; border-radius: 6px; margin: 4px 0;">
+<h2 style="font-size: 1.4em; margin: 0 0 8px 0;"><span style="color: #E65100; font-weight: bold;">Плановые работы</span></h2>
 <p><b>[дата]</b> с <b>[время начала]</b> до <b>[время конца]</b> будут проводиться технические работы в <span style="background: #E8EAF6; color: #283593; padding: 2px 8px; border-radius: 4px; font-size: 0.9em;">ForteSpace BPM</span></p>
 <p>Во время работ <b>нельзя будет создавать обращения</b> в BPM.</p>
 </div>
 
-<div style="background: #F0F4FF; border-left: 4px solid #1E88E5; padding: 12px 16px; border-radius: 6px; margin: 8px 0;">
+<div style="background: #F0F4FF; border-left: 4px solid #1E88E5; padding: 12px 16px; border-radius: 6px; margin: 4px 0;">
 <p><span style="color: #1565C0; font-weight: bold;">Что не будет работать у сотрудников:</span></p>
 <p>· [перечислить из письма]</p>
 </div>
 
-<div style="background: #F0F4FF; border-left: 4px solid #1E88E5; padding: 12px 16px; border-radius: 6px; margin: 8px 0;">
+<div style="background: #F0F4FF; border-left: 4px solid #1E88E5; padding: 12px 16px; border-radius: 6px; margin: 4px 0;">
 <p><span style="color: #1565C0; font-weight: bold;">Что не будет работать у клиентов:</span></p>
 <p>· [перечислить из письма]</p>
 </div>
 
-<div style="background: #E8F5E9; border-left: 4px solid #43A047; padding: 12px 16px; border-radius: 6px; margin: 8px 0;">
+<div style="background: #E8F5E9; border-left: 4px solid #43A047; padding: 12px 16px; border-radius: 6px; margin: 4px 0;">
 <p><span style="color: #2E7D32; font-weight: bold;">Что делать оператору:</span></p>
 <p><b>1.</b> Составить обращение по шаблону</p>
 <p><b>2.</b> Отправить на почту <b>NBagonov@Fortebank.com</b></p>

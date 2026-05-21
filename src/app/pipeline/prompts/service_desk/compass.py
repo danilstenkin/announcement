@@ -30,32 +30,32 @@ PROMPT_COMPASS = f"""Ты — ИИ-информатор входящих пис�
 Шаблон title для плановых работ: Технические работы в Compass+
 
 Шаблон ai_email для сбоя:
-<div style="background: #FFF0F0; border-left: 4px solid #E53935; padding: 12px 16px; border-radius: 6px; margin: 8px 0;">
-<h2><span style="color: #A31551; font-weight: bold;">Сбой в системе</span></h2>
+<div style="background: #FFF0F0; border-left: 4px solid #E53935; padding: 12px 16px; border-radius: 6px; margin: 4px 0;">
+<h2 style="font-size: 1.4em; margin: 0 0 8px 0;"><span style="color: #A31551; font-weight: bold;">Сбой в системе</span></h2>
 <p><b>[дата]</b> с <b>[время начала]</b> наблюдаются проблемы в карточной системе <span style="background: #E8EAF6; color: #283593; padding: 2px 8px; border-radius: 4px; font-size: 0.9em;">Compass+</span></p>
 <p><b>Что произошло:</b> [описание простым языком]</p>
 <p><b>Причина:</b> [причина, если указана]</p>
 <p><b>Когда починят:</b> ориентировочно до <b>[время]</b></p>
 </div>
-<div style="background: #F0F4FF; border-left: 4px solid #1E88E5; padding: 12px 16px; border-radius: 6px; margin: 8px 0;">
+<div style="background: #F0F4FF; border-left: 4px solid #1E88E5; padding: 12px 16px; border-radius: 6px; margin: 4px 0;">
 <p><b>Что не работает у клиентов:</b></p>
 <p>· [сервис 1]</p><p>· [сервис 2]</p>
 </div>
 
 Шаблон ai_email для устранения:
-<div style="background: #F0FFF0; border-left: 4px solid #43A047; padding: 12px 16px; border-radius: 6px; margin: 8px 0;">
-<h2><span style="color: #2E7D32; font-weight: bold;">Проблема устранена</span></h2>
+<div style="background: #F0FFF0; border-left: 4px solid #43A047; padding: 12px 16px; border-radius: 6px; margin: 4px 0;">
+<h2 style="font-size: 1.4em; margin: 0 0 8px 0;"><span style="color: #2E7D32; font-weight: bold;">Проблема устранена</span></h2>
 <p>Сбой в карточной системе <span style="background: #E8EAF6; color: #283593; padding: 2px 8px; border-radius: 4px; font-size: 0.9em;">Compass+</span> устранён.</p>
 <p><b>Период сбоя:</b> <b>[дата начала] [время начала]</b> — <b>[дата окончания] [время окончания]</b></p>
 <p><b>Что было:</b> [описание]</p>
 </div>
 
 Шаблон ai_email для плановых работ:
-<div style="background: #FFF8E1; border-left: 4px solid #FB8C00; padding: 12px 16px; border-radius: 6px; margin: 8px 0;">
-<h2><span style="color: #E65100; font-weight: bold;">Плановые работы</span></h2>
+<div style="background: #FFF8E1; border-left: 4px solid #FB8C00; padding: 12px 16px; border-radius: 6px; margin: 4px 0;">
+<h2 style="font-size: 1.4em; margin: 0 0 8px 0;"><span style="color: #E65100; font-weight: bold;">Плановые работы</span></h2>
 <p><b>[дата]</b> с <b>[время начала]</b> до <b>[время конца]</b> будут проводиться технические работы в системе <span style="background: #E8EAF6; color: #283593; padding: 2px 8px; border-radius: 4px; font-size: 0.9em;">Compass+</span></p>
 </div>
-<div style="background: #F0F4FF; border-left: 4px solid #1E88E5; padding: 12px 16px; border-radius: 6px; margin: 8px 0;">
+<div style="background: #F0F4FF; border-left: 4px solid #1E88E5; padding: 12px 16px; border-radius: 6px; margin: 4px 0;">
 <p><b>Что не будет работать у клиентов:</b></p>
 <p>· [сервис 1]</p><p>· [сервис 2]</p>
 </div>
@@ -71,5 +71,5 @@ PROMPT_COMPASS = f"""Ты — ИИ-информатор входящих пис�
 Влияние на Клиентов Банка: Снятие наличныхОплата картой
 
 ОЖИДАЕМЫЙ JSON:
-{{"title": "Сбой в Compass+", "ai_email": "<div style=\\"background: #FFF0F0; border-left: 4px solid #E53935; padding: 12px 16px; border-radius: 6px; margin: 8px 0;\\"><h2><span style=\\"color: #A31551; font-weight: bold;\\">Сбой в системе</span></h2><p><b>03.05.2026</b> с <b>08:51</b> наблюдаются проблемы в карточной системе <span style=\\"background: #E8EAF6; color: #283593; padding: 2px 8px; border-radius: 4px; font-size: 0.9em;\\">Compass+</span></p><p><b>Что произошло:</b> Проблемы с карточными операциями. У клиентов произошли двойные списания за 30.04, 01.05, 02.05.</p><p><b>Причина:</b> проблема на стороне НПК</p><p><b>Когда починят:</b> ориентировочно до <b>14:00</b></p></div><div style=\\"background: #F0F4FF; border-left: 4px solid #1E88E5; padding: 12px 16px; border-radius: 6px; margin: 8px 0;\\"><p><b>Что не работает у клиентов:</b></p><p>· Снятие наличных</p><p>· Оплата картой</p></div>", "script_ru": "Уважаемый клиент, в настоящее время наблюдаются проблемы при совершении карточных операций (снятие наличных, оплата картой). Ориентировочное время устранения — 14:00. Приносим извинения за доставленные неудобства.", "script_kz": "Құрметті клиент, қазіргі уақытта карточкалық операцияларды жасау кезінде мәселелер байқалуда (қолма-қол ақша алу, картамен төлеу). Жоюдың болжалды уақыты — 14:00. Келтірілген қолайсыздықтар үшін кешірім сұраймыз."}}
+{{"title": "Сбой в Compass+", "ai_email": "<div style=\\"background: #FFF0F0; border-left: 4px solid #E53935; padding: 12px 16px; border-radius: 6px; margin: 4px 0;\\"><h2 style="font-size: 1.4em; margin: 0 0 8px 0;"><span style=\\"color: #A31551; font-weight: bold;\\">Сбой в системе</span></h2><p><b>03.05.2026</b> с <b>08:51</b> наблюдаются проблемы в карточной системе <span style=\\"background: #E8EAF6; color: #283593; padding: 2px 8px; border-radius: 4px; font-size: 0.9em;\\">Compass+</span></p><p><b>Что произошло:</b> Проблемы с карточными операциями. У клиентов произошли двойные списания за 30.04, 01.05, 02.05.</p><p><b>Причина:</b> проблема на стороне НПК</p><p><b>Когда починят:</b> ориентировочно до <b>14:00</b></p></div><div style=\\"background: #F0F4FF; border-left: 4px solid #1E88E5; padding: 12px 16px; border-radius: 6px; margin: 4px 0;\\"><p><b>Что не работает у клиентов:</b></p><p>· Снятие наличных</p><p>· Оплата картой</p></div>", "script_ru": "Уважаемый клиент, в настоящее время наблюдаются проблемы при совершении карточных операций (снятие наличных, оплата картой). Ориентировочное время устранения — 14:00. Приносим извинения за доставленные неудобства.", "script_kz": "Құрметті клиент, қазіргі уақытта карточкалық операцияларды жасау кезінде мәселелер байқалуда (қолма-қол ақша алу, картамен төлеу). Жоюдың болжалды уақыты — 14:00. Келтірілген қолайсыздықтар үшін кешірім сұраймыз."}}
 """
