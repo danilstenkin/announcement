@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field, ConfigDict
+from pydantic import BaseModel, Field, ConfigDict, model_validator
 from typing import Optional, List, TYPE_CHECKING
 from datetime import datetime
 from uuid import UUID
@@ -51,6 +51,8 @@ class AttachmentResponse(BaseModel):
     file_size: Optional[int] = None
     content_type: Optional[str] = None
     uploaded_at: datetime
+    is_ai: bool = False
+    source: Optional[str] = None
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -62,14 +64,16 @@ class AnnouncementResponse(AnnouncementBase):
     is_revoked: bool
     revoked_link: Optional[str]
     created_by: UUID
-    username: Optional[str] = None
+    username: Optional[str] = Field(None, validation_alias="name")
     email: Optional[str] = None
     created_at: datetime
     updated_at: datetime
     is_read: Optional[bool] = None
+    is_ai: bool = False
+    source: Optional[str] = None
     attachments: List[AttachmentResponse] = []
 
-    model_config = ConfigDict(from_attributes=True)
+    model_config = ConfigDict(from_attributes=True, populate_by_name=True)
 
 
 class AnnouncementListResponse(AnnouncementBase):
@@ -87,6 +91,8 @@ class AnnouncementListResponse(AnnouncementBase):
     is_read: Optional[bool] = None
     username: Optional[str] = None
     email: Optional[str] = None
+    is_ai: bool = False
+    source: Optional[str] = None
     attachments: List[AttachmentResponse] = []
 
     model_config = ConfigDict(from_attributes=True)
@@ -118,6 +124,8 @@ class AnnouncementListResponse(AnnouncementBase):
             created_at=announcement.created_at,
             updated_at=announcement.updated_at,
             is_read=is_read,
+            is_ai=announcement.is_ai or False,
+            source=announcement.source,
             attachments=[
                 AttachmentResponse.model_validate(att)
                 for att in (announcement.attachments or [])
@@ -182,6 +190,8 @@ class NotificationEvent(BaseModel):
     product: Optional[str] = None
     text: Optional[str] = None
     timestamp: datetime
+    is_ai: bool = False
+    source: Optional[str] = None
 
 
 class UnreadCounterResponse(BaseModel):

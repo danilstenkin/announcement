@@ -20,8 +20,10 @@ class AIEmail(Base):
         nullable=False,
         index=True,
     )
+    ai_title = Column(Text, nullable=True)
     ai_email = Column(Text, nullable=True)
     script_ru = Column(Text, nullable=True)
     script_kz = Column(Text, nullable=True)
+    ai_summary = Column(Text, nullable=True)
     in_knowledge_base = Column(Boolean, nullable=True)
     created_at = Column(DateTime(timezone=True), default=get_astana_time, nullable=False)

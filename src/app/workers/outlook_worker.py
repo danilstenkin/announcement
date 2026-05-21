@@ -4,6 +4,7 @@ IMAP IDLE watcher — слушает почтовый ящик и обрабат
 """
 
 import asyncio
+import base64
 import re
 from contextlib import suppress
 from datetime import datetime
@@ -133,6 +134,28 @@ def _extract_text(message) -> tuple[str, list[dict]]:
     return text.strip(), links
 
 
+def _clean_body(text: str) -> str:
+    """
+    Убирает из тела письма заголовки пересылки и дисклеймеры.
+    Удаляет только блок заголовков в начале текста (до первого пустого разделителя).
+    """
+    # Убираем блок заголовков пересылки в начале (From/To/Sent/Subject/Cc подряд)
+    text = re.sub(
+        r"\A(?:(?:From|To|Sent|Subject|Cc|Кому|От|Отправлено|Тема|Копия):\s*.*\n?)+",
+        "",
+        text,
+        flags=re.IGNORECASE,
+    )
+    # Убираем дисклеймер о конфиденциальности (обычно в конце)
+    text = re.sub(
+        r"(?is)(данное сообщение|this message|настоящее электронное сообщение).*?(третьими лицами|third parties)\.?",
+        "",
+        text,
+    )
+    text = re.sub(r"\n{3,}", "\n\n", text)
+    return text.strip()
+
+
 def _safe_filename(filename: str) -> str:
     """
     Очищает имя файла от опасных символов.
@@ -146,6 +169,42 @@ def _safe_filename(filename: str) -> str:
     filename = re.sub(r"[^a-zA-Z0-9а-яА-ЯёЁ._ -]+", "_", filename)  # оставляем только безопасные символы
     return filename or "file"                                          # если пусто — дефолтное имя
 
+
+
+def _embed_inline_images(html: str, message) -> str:
+    """
+    Заменяет cid:ссылки в HTML на data:base64, чтобы картинки
+    отображались при открытии HTML вне email-клиента.
+    """
+    # Собираем маппинг Content-ID → (content_type, bytes)
+    cid_map: dict[str, tuple[str, bytes]] = {}
+    for part in message.walk():
+        if part.is_multipart():
+            continue
+        content_id = part.get("Content-ID")
+        if not content_id:
+            continue
+        ct = part.get_content_type()
+        if not ct.startswith("image/"):
+            continue
+        payload = part.get_payload(decode=True)
+        if not payload:
+            continue
+        cid = content_id.strip("<>")
+        cid_map[cid] = (ct, payload)
+
+    if not cid_map:
+        return html
+
+    def _replace_cid(match: re.Match) -> str:
+        cid = match.group(1)
+        if cid in cid_map:
+            ct, data = cid_map[cid]
+            b64 = base64.b64encode(data).decode("ascii")
+            return f'src="data:{ct};base64,{b64}"'
+        return match.group(0)
+
+    return re.sub(r'src=["\']cid:([^"\']+)["\']', _replace_cid, html, flags=re.IGNORECASE)
 
 
 def _extract_attachments(message, uid: str) -> list[dict]:
@@ -170,10 +229,17 @@ def _extract_attachments(message, uid: str) -> list[dict]:
         ct = part.get_content_type()                               # image/png, application/pdf, ...
         disposition = part.get_content_disposition()                # attachment / inline / None
         filename = part.get_filename()                             # имя файла из заголовка
-        content_id = part.get("Content-ID")                        # CID для inline-картинок в HTML
+        content_id = part.get("Content-ID")
+        logger.info(
+            "MIME part #{idx}: type={ct}, disposition={disp}, filename={fn}, content_id={cid}, size={sz}",
+            idx=idx, ct=ct, disp=disposition, fn=filename,
+            cid=content_id, sz=len(part.get_payload(decode=True) or b""),
+        )
         is_attachment = disposition == "attachment"                 # явное вложение
         is_inline_image = disposition == "inline" and ct.startswith("image/")  # встроенная картинка
-        if not is_attachment and not is_inline_image and not filename:
+        if is_inline_image:
+            continue                                               # пропускаем inline-картинки (логотипы из подписи)
+        if not is_attachment and not filename:
             continue                                               # не вложение — пропускаем
         payload = part.get_payload(decode=True)                    # сырые байты файла (base64 → bytes)
         if not payload:
@@ -207,7 +273,11 @@ async def _connect():
       3. LOGIN user password
       4. SELECT INBOX  → теперь можем искать и читать письма
     """
-    client = aioimaplib.IMAP4_SSL(host=settings.IMAP_HOST, timeout=30)  # SSL-соединение с сервером
+    import ssl as _ssl
+    ssl_context = _ssl.create_default_context()
+    ssl_context.check_hostname = False
+    ssl_context.verify_mode = _ssl.CERT_NONE
+    client = aioimaplib.IMAP4_SSL(host=settings.IMAP_HOST, timeout=30, ssl_context=ssl_context)
     await client.wait_hello_from_server()                          # ждём приветствие сервера
     result, data = await client.login(settings.IMAP_USER, settings.IMAP_PASSWORD)  # авторизация
     if result != "OK":
@@ -285,7 +355,28 @@ async def _process_unseen(client):
                 continue
 
             body, links = _extract_text(message)
+            body = _clean_body(body)
             raw_attachments = _extract_attachments(message, uid)
+
+            # Извлекаем оригинальный HTML для сохранения в MinIO
+            raw_html = None
+            for part in message.walk():
+                if part.get_content_type() == "text/html" and part.get_content_disposition() != "attachment":
+                    payload = part.get_payload(decode=True)
+                    if payload:
+                        try:
+                            raw_html = payload.decode("utf-8")
+                        except UnicodeDecodeError:
+                            charset = part.get_content_charset() or "windows-1251"
+                            raw_html = payload.decode(charset, errors="replace")
+                        # Заменяем charset на utf-8, т.к. сохраняем в UTF-8
+                        raw_html = re.sub(
+                            r'charset=["\']?[^"\'\s;>]+["\']?',
+                            'charset="utf-8"',
+                            raw_html,
+                            flags=re.IGNORECASE,
+                        )
+                    break
 
             # Загружаем вложения в MinIO (I/O — до пайплайна)
             attachments = []
@@ -308,6 +399,18 @@ async def _process_unseen(client):
                     count=len(attachments), uid=uid,
                 )
 
+            # Встраиваем inline-картинки в HTML и сохраняем в MinIO
+            original_html_key = None
+            if raw_html:
+                raw_html = _embed_inline_images(raw_html, message)
+                minio = get_minio_client()
+                original_html_key = await minio.upload_file(
+                    file_content=raw_html.encode("utf-8"),
+                    filename="original.html",
+                    announcement_id=f"emails/{uid}",
+                )
+                logger.info("Saved original HTML to MinIO: {key}", key=original_html_key)
+
             # Формируем контекст и отправляем в пайплайн
             ctx = PipelineContext(
                 uid=uid,
@@ -319,6 +422,7 @@ async def _process_unseen(client):
                 links=links,
                 attachments=attachments,        # только метаданные + object_key
                 received_at=received_at,
+                raw_html=original_html_key,
             )
             try:
                 await run_pipeline(ctx)

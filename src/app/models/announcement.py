@@ -1,5 +1,6 @@
+from email.policy import default
 from sqlalchemy.orm import relationship
-from sqlalchemy import Column, String, Text, Boolean, DateTime, Enum as SQLEnum
+from sqlalchemy import Column, Nullable, String, Text, Boolean, DateTime, Enum as SQLEnum, column
 from sqlalchemy.dialects.postgresql import UUID
 
 from datetime import datetime
@@ -16,6 +17,7 @@ class AnnouncementCategoryEnum(str, Enum):
     CHANGE = "CHANGE"
     NEW = "NEW"
     REVOKED = "REVOKED"
+
 
 
 def get_astana_time():
@@ -41,6 +43,9 @@ class Announcement(Base):
     is_hidden = Column(Boolean, default=True)
     is_revoked = Column(Boolean, default=False)
     revoked_link = Column(String(500), nullable=True)
+
+    is_ai = Column(Boolean, default=False)
+    source = Column(String(50), nullable=True)
 
     created_by = Column(UUID(as_uuid=True), nullable=False)
     name = Column(String(255), nullable=True)

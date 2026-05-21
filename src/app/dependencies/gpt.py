@@ -1,179 +1,295 @@
 from __future__ import annotations
-import asyncio
+
 import json as _json
+
 from dataclasses import dataclass
-import httpx
+
+from datetime import datetime, timezone
+
+from pathlib import Path
+
+from typing import Any
+
+from openai import (
+
+    APIConnectionError,
+
+    APIStatusError,
+
+    APITimeoutError,
+
+    AsyncOpenAI,
+
+)
+
 from config import settings
+
 from logger import get_logger
 
 logger = get_logger(__name__)
 
 
 class GPTError(Exception):
+
     """Base Error"""
 
 
 class GPTAPIError(GPTError):
+
     """Error from API (4xx/5xx)"""
 
     def __init__(self, status_code: int, message: str):
+
         self.status_code = status_code
+
         self.message = message
+
         super().__init__(f"GPT API {status_code}: {message}")
 
 
 class GPTEmptyResponseError(GPTError):
-    """Response without choices"""
+
+    """Response without content"""
+
+
+class GPTInvalidJSONError(GPTError):
+
+    """Response content is not valid JSON"""
 
 
 @dataclass(frozen=True)
+
 class GPTConfig:
+
     base_url: str = settings.GPT_URL
-    model: str = "gpt-4.1-mini"
+
+    api_key: str = settings.GPT_API_KEY
+
+    model: str = "gpt-5.4-mini"
+
     timeout: float = 60.0
+
     max_retries: int = 3
-    retry_backoff: float = 0.5
+
+    debug_dump: bool = False
+
+    debug_dir: str = "debug"
 
 
 class GPTClient:
-    _RETRY_STATUS_CODES = {429, 500, 502, 503, 504}
 
     def __init__(self, config: GPTConfig):
+
         self._config = config
-        self._http = httpx.AsyncClient(
+
+        self._client = AsyncOpenAI(
+
+            api_key=config.api_key,
+
             base_url=config.base_url,
+
             timeout=config.timeout,
-            verify=False,
-            headers={
-                "Content-Type": "application/json",
-            },
+
+            max_retries=config.max_retries,
+
         )
 
     async def __aenter__(self) -> GPTClient:
+
         return self
 
-    async def __aexit__(self, *args) -> None:
+    async def __aexit__(self, *args: Any) -> None:
+
         await self.close()
 
     async def close(self) -> None:
-        await self._http.aclose()
+
+        await self._client.close()
 
     async def format_email(
+
         self,
+
         email_body: str,
+
         template: str,
+
         prompt: str,
+
         *,
-        temperature: float = 0.3,
-        max_tokens: int = 80000,
-    ) -> str:
-        payload = {
-            "model": self._config.model,
-            "input": [
-                {"role": "system", "content": prompt},
-                {"role": "user", "content": email_body},
-            ],
-            "temperature": temperature,
-            "text": {
-                "format": {
-                    "type": "json_schema",
-                    "name": "email_analysis",
-                    "schema": {
-                        "type": "object",
-                        "properties": {
-                            "title": {
-                                "type": "string",
-                                "description": "Краткий заголовок анонса (без Markdown)",
-                            },
-                            "ai_email": {
-                                "type": "string",
-                                "description": "Тело анонса с Markdown-разметкой (без заголовка)",
-                            },
-                            "script_ru": {
-                                "type": ["string", "null"],
-                                "description": "Скрипт оператора на русском или null",
-                            },
-                            "script_kz": {
-                                "type": ["string", "null"],
-                                "description": "Скрипт оператора на казахском или null",
-                            },
-                        },
-                        "required": ["title", "ai_email", "script_ru", "script_kz"],
-                        "additionalProperties": False,
-                    },
-                    "strict": True,
-                },
+
+        temperature: float | None = None,
+
+        max_tokens: int = 12000,
+
+        include_summary: bool = False,
+
+    ) -> dict[str, Any]:
+
+        properties: dict[str, Any] = {
+
+            "title": {
+
+                "type": "string",
+
+                "description": "Краткий заголовок анонса (без Markdown)",
+
             },
+
+            "ai_email": {
+
+                "type": "string",
+
+                "description": "Тело анонса с Markdown-разметкой (без заголовка)",
+
+            },
+
+            "script_ru": {
+
+                "type": ["string", "null"],
+
+                "description": "Скрипт оператора на русском или null",
+
+            },
+
+            "script_kz": {
+
+                "type": ["string", "null"],
+
+                "description": "Скрипт оператора на казахском или null",
+
+            },
+
         }
-        if max_tokens is not None:
-            payload["max_output_tokens"] = max_tokens
 
-        # ── Дамп payload и response в файл для отладки ──
-        dump_path = "gpt_debug.json"
+        required = ["title", "ai_email", "script_ru", "script_kz"]
 
-        data = await self._post_with_retry("/chat/completions", payload)
+        if include_summary:
 
-        with open(dump_path, "w", encoding="utf-8") as f:
-            _json.dump({"request": payload, "response": data}, f, ensure_ascii=False, indent=2)
+            properties["ai_summary"] = {
 
-        logger.info("GPT debug dumped to {path}", path=dump_path)
+                "type": "string",
 
-        if data.get("error"):
-            raise GPTAPIError(400, str(data["error"]))
+                "description": "Суть письма одним предложением, максимум 7 слов",
 
-        output = data.get("output") or []
-        if not output:
-            raise GPTEmptyResponseError("response has no output")
+            }
 
-        for item in output:
-            if item.get("type") == "message":
-                for content in item.get("content", []):
-                    if content.get("type") == "output_text":
-                        return content["text"]
+            required.append("ai_summary")
 
-        raise GPTEmptyResponseError("no text in response output")
+        user_content = (
 
-    async def _post_with_retry(self, path: str, payload: dict) -> dict:
-        last_exc: Exception | None = None
+            "Шаблон оформления:\n"
 
-        for attempt in range(self._config.max_retries + 1):
-            if attempt > 0:
-                delay = self._config.retry_backoff * (2 ** (attempt - 1))
-                logger.warning(
-                    "GPT retry %d/%d after %.2fs",
-                    attempt, self._config.max_retries, delay,
-                )
-                await asyncio.sleep(delay)
+            f"{template}\n\n"
 
-            try:
-                response = await self._http.post(path, json=payload)
-            except httpx.TimeoutException as e:
-                last_exc = GPTError(f"timeout: {e}")
-                logger.warning("GPT timeout: %s", e)
-                continue
-            except httpx.HTTPError as e:
-                last_exc = GPTError(f"network error: {e}")
-                logger.warning("GPT network error: %s", e)
-                continue
+            "Исходное письмо:\n"
 
-            if 200 <= response.status_code < 300:
-                return response.json()
+            f"{email_body}"
 
-            if response.status_code in self._RETRY_STATUS_CODES:
-                last_exc = self._build_api_error(response)
-                logger.warning("GPT retryable error: %s", last_exc)
-                continue
+        )
 
-            raise self._build_api_error(response)
+        request_params: dict[str, Any] = {
 
-        assert last_exc is not None
-        raise last_exc
+            "model": self._config.model,
 
-    @staticmethod
-    def _build_api_error(response: httpx.Response) -> GPTAPIError:
+            "messages": [
+
+                {"role": "system", "content": prompt},
+
+                {"role": "user", "content": user_content},
+
+            ],
+
+            "max_tokens": max_tokens,
+
+            "response_format": {
+
+                "type": "json_schema",
+
+                "json_schema": {
+
+                    "name": "email_analysis",
+
+                    "strict": True,
+
+                    "schema": {
+
+                        "type": "object",
+
+                        "properties": properties,
+
+                        "required": required,
+
+                        "additionalProperties": False,
+
+                    },
+
+                },
+
+            },
+
+        }
+
+        if temperature is not None:
+
+            request_params["temperature"] = temperature
+
         try:
-            body = response.json()
-            message = body.get("error", {}).get("message") or response.text
-        except Exception:
-            message = response.text
-        return GPTAPIError(response.status_code, message)
+
+            response = await self._client.chat.completions.create(**request_params)
+
+        except APIStatusError as e:
+
+            raise GPTAPIError(e.status_code, str(e.response)) from e
+
+        except (APITimeoutError, APIConnectionError) as e:
+
+            raise GPTError(f"GPT transport error: {e}") from e
+
+        if self._config.debug_dump:
+
+            self._dump_debug_response(response)
+
+        choice = response.choices[0] if response.choices else None
+
+        content = choice.message.content if choice else None
+
+        if not content:
+
+            raise GPTEmptyResponseError("no content in response")
+
+        try:
+
+            return _json.loads(content)
+
+        except _json.JSONDecodeError as e:
+
+            raise GPTInvalidJSONError(f"invalid JSON from model: {e}") from e
+
+    def _dump_debug_response(self, response: Any) -> None:
+
+        debug_dir = Path(self._config.debug_dir)
+
+        debug_dir.mkdir(parents=True, exist_ok=True)
+
+        timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S_%f")
+
+        dump_path = debug_dir / f"gpt_debug_{timestamp}.json"
+
+        with dump_path.open("w", encoding="utf-8") as f:
+
+            _json.dump(
+
+                response.model_dump(),
+
+                f,
+
+                ensure_ascii=False,
+
+                indent=2,
+
+                default=str,
+
+            )
+
+        logger.info("GPT debug dumped to {path}", path=str(dump_path))

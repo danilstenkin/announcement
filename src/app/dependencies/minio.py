@@ -1,5 +1,6 @@
 from minio import Minio
 from minio.error import S3Error
+from minio.commonconfig import CopySource
 
 import io
 import os
@@ -72,6 +73,18 @@ class MinIOClient:
             logger.info(f"Deleted file from MinIO: {object_key}")
         except S3Error as e:
             logger.error(f"Failed to delete file from MinIO: {e}")
+            raise
+
+    async def copy_file(self, source_key: str, dest_key: str) -> str:
+        try:
+            self.client.copy_object(
+                bucket_name=self.bucket_name,
+                object_name=dest_key,
+                source=CopySource(self.bucket_name, source_key),
+            )
+            return dest_key
+        except S3Error as e:
+            logger.error(f"Failed to copy MinIO object: {e}")
             raise
 
     def get_file_url(self, object_key: str, expiry_seconds: int = 3600) -> str:

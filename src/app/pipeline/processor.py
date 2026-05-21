@@ -14,6 +14,11 @@ async def run_pipeline(ctx: PipelineContext):
             await save_email(ctx, session)
             if ctx.is_duplicate or ctx.email_db_id is None:
                 return ctx
+            await session.commit()
+        except Exception:
+            await session.rollback()
+            return ctx
+        try:
             await analyze(ctx, session)
             await publish(ctx, session)
             await session.commit()

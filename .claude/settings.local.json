@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(docker build:*)",
+      "Bash(docker save:*)",
+      "Bash(python3 -c ':*)",
+      "Bash(docker run:*)",
+      "Bash(ls -t migrations/versions/*.py)",
+      "Bash(docker tag:*)"
+    ]
+  }
+}

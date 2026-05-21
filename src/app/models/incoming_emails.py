@@ -7,11 +7,12 @@ from models.base import Base
 
 
 class EmailStatusEnum(str, Enum):
-    PROCESSING = "PRO`CESSING"
+    PROCESSING = "PROCESSING"
     GREEN = "GREEN"
     RED = "RED"
     YELLOW = "YELLOW"
     GRAY = "GRAY"
+    DONE = "DONE"
 
 class IncomingEmail(Base):
     __tablename__ = "incoming_emails"
@@ -27,6 +28,7 @@ class IncomingEmail(Base):
         default=EmailStatusEnum.PROCESSING,
         nullable=False
     )
+    original_html_key = Column(String(500), nullable=True)
     processed_at = (Column(DateTime(timezone=True), nullable=True))
     created_at = (Column(DateTime(timezone=True), default=get_astana_time, nullable=True))
 

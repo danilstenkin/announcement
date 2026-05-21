@@ -32,6 +32,7 @@ class Settings(BaseSettings):
 
     # LLM
     GPT_URL: str
+    GPT_API_KEY: str
 
     # API
     API_TITLE: str = "Corporate Announcements API"

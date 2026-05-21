@@ -16,6 +16,7 @@ async def save_email(ctx: PipelineContext, session: AsyncSession) -> None:
         sender_email=ctx.sender_email,
         received_at=ctx.received_at,
         status=EmailStatusEnum.PROCESSING,
+        original_html_key=ctx.raw_html,
     )
     session.add(record)
     try:

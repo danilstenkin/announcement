@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import datetime
-from tkinter import N
 from uuid import UUID
 
 from models.incoming_emails import EmailStatusEnum
@@ -22,6 +21,7 @@ class PipelineContext:
     received_at: datetime
     links: list[dict] = field(default_factory=list)
     attachments: list[dict] = field(default_factory=list)
+    raw_html: str | None = None                 # оригинальный HTML письма
 
     # ── Шаг 1: save_email ───────────────────────────────
     email_db_id: UUID | None = None             # ID записи в incoming_emails
@@ -34,6 +34,7 @@ class PipelineContext:
     ai_emails_db_id: UUID | None = None          # ID записи в email_analysis
     script_ru: str | None = None
     script_kz: str | None = None
+    ai_summary: str | None = None
 
 
     # ── Шаг 3: route ────────────────────────────────────

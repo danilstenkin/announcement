@@ -12,4 +12,7 @@ httpx==0.28.1
 SQLAlchemy==2.0.45
 uvicorn[standard]==0.34.2
 prometheus-fastapi-instrumentator==7.0.2
-weaviate
+weaviate-client
+aioimaplib
+packaging
+openai

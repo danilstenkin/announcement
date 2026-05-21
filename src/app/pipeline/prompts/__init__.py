@@ -3,6 +3,7 @@ from pipeline.prompts.service_desk.compass import PROMPT_COMPASS
 from pipeline.prompts.service_desk.mib import PROMPT_MIB
 from pipeline.prompts.service_desk.colvir import PROMPT_COLVIR
 from pipeline.prompts.service_desk.default import PROMPT_DEFAULT
+from pipeline.prompts.komek.base import PROMPT_KOMEK
 
 import re
 
@@ -19,13 +20,17 @@ def extract_system(text: str) -> str | None:
     system = match.group(1).strip() if match else None
     return system
 
-def select_prompt(email_body: str) -> str:
-    system = extract_system(email_body)
-    print("SYSTEEEM====", system)
-    if system:
-        system_lower = system.lower()
-        for keyword, prompt in _SYSTEM_PROMT:
-            if keyword.lower() in system_lower:
-                return prompt
+def select_prompt(email_body: str, email_from: str) -> tuple[str, str]:
+    if email_from == "DAStenkin@Fortebank.com":  # Service Desk
+        system = extract_system(email_body)
+        if system:
+            system_lower = system.lower()
+            for keyword, prompt in _SYSTEM_PROMT:
+                if keyword.lower() in system_lower:
+                    return prompt, "service_desk"
+        return PROMPT_DEFAULT, "service_desk_default"
 
-    return "верни просто промт не найден для этого анонса"
+    # elif email_from == "komek@Fortebank.com":
+    #     return PROMPT_KOMEK, "komek"
+
+    return PROMPT_DEFAULT, "default"

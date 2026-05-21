@@ -32,7 +32,10 @@ class NotificationsService:
             topic=announcement.topic,
             product=announcement.product,
             text=announcement.text,
+            is_ai=getattr(announcement, 'is_ai', False) or False,
+            source=getattr(announcement, 'source', None),
             timestamp=datetime.now(timezone.utc),
+
         )
         await self._send_event(notification)
         logger.info(
@@ -50,6 +53,8 @@ class NotificationsService:
             topic=announcement.topic,
             product=announcement.product,
             text=announcement.text,
+            is_ai=getattr(announcement, 'is_ai', False) or False,
+            source=getattr(announcement, 'source', None),
             timestamp=datetime.now(timezone.utc),
         )
         await self._send_event(notification)
@@ -68,6 +73,8 @@ class NotificationsService:
             topic=announcement.topic,
             product=announcement.product,
             text=announcement.text,
+            is_ai=getattr(announcement, 'is_ai', False) or False,
+            source=getattr(announcement, 'source', None),
             timestamp=datetime.now(timezone.utc),
         )
         await self._send_event(notification)
@@ -86,6 +93,8 @@ class NotificationsService:
             topic=announcement.topic,
             product=announcement.product,
             text=announcement.text,
+            is_ai=getattr(announcement, 'is_ai', False) or False,
+            source=getattr(announcement, 'source', None),
             timestamp=datetime.now(timezone.utc),
         )
         await self._send_event(notification)
@@ -102,6 +111,8 @@ class NotificationsService:
             "category": notification.category,
             "announcement_id": str(notification.announcement_id),
             "timestamp": notification.timestamp.isoformat(),
+            "is_ai": notification.is_ai,
+            "source": notification.source,
         }
 
         try:
