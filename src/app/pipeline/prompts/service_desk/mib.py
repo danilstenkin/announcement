@@ -35,7 +35,7 @@ PROMPT_MIB = f"""Ты — ИИ-информатор входящих писем 
 
 Шаблон ai_email для плановых работ:
 <div style="background: #FFF8E1; border-left: 4px solid #FB8C00; padding: 12px 16px; border-radius: 6px; margin: 8px 0;">
-<h2><span style="color: #E65100; font-weight: bold;">⚠ Плановые работы</span></h2>
+<h2><span style="color: #E65100; font-weight: bold;">Плановые работы</span></h2>
 <p><b>[дата]</b> с <b>[время начала]</b> до <b>[время конца]</b> будут проводиться технические работы в мобильном приложении <span style="background: #E8EAF6; color: #283593; padding: 2px 8px; border-radius: 4px; font-size: 0.9em;">МИБ ФЛ</span></p>
 </div>
 <div style="background: #F0F4FF; border-left: 4px solid #1E88E5; padding: 12px 16px; border-radius: 6px; margin: 8px 0;">
@@ -45,7 +45,7 @@ PROMPT_MIB = f"""Ты — ИИ-информатор входящих писем 
 
 Шаблон ai_email для сбоя:
 <div style="background: #FFF0F0; border-left: 4px solid #E53935; padding: 12px 16px; border-radius: 6px; margin: 8px 0;">
-<h2><span style="color: #A31551; font-weight: bold;">🔴 Сбой в системе</span></h2>
+<h2><span style="color: #A31551; font-weight: bold;">Сбой в системе</span></h2>
 <p><b>[дата]</b> с <b>[время начала]</b> наблюдаются проблемы в мобильном приложении <span style="background: #E8EAF6; color: #283593; padding: 2px 8px; border-radius: 4px; font-size: 0.9em;">МИБ ФЛ</span></p>
 <p><b>Что произошло:</b> [описание простым языком]</p>
 <p><b>Причина:</b> [причина, если указана]</p>
@@ -58,7 +58,7 @@ PROMPT_MIB = f"""Ты — ИИ-информатор входящих писем 
 
 Шаблон ai_email для устранения:
 <div style="background: #F0FFF0; border-left: 4px solid #43A047; padding: 12px 16px; border-radius: 6px; margin: 8px 0;">
-<h2><span style="color: #2E7D32; font-weight: bold;">✅ Проблема устранена</span></h2>
+<h2><span style="color: #2E7D32; font-weight: bold;">Проблема устранена</span></h2>
 <p>Сбой в мобильном приложении <span style="background: #E8EAF6; color: #283593; padding: 2px 8px; border-radius: 4px; font-size: 0.9em;">МИБ ФЛ</span> устранён.</p>
 <p><b>Период сбоя:</b> <b>[дата начала] [время начала]</b> — <b>[дата окончания] [время окончания]</b></p>
 <p><b>Что было:</b> [описание]</p>
