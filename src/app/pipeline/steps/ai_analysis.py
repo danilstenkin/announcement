@@ -5,6 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from dependencies.gpt import GPTClient, GPTConfig
 from logger import get_logger
 from models.ai_analysis import AIEmail
+from models.incoming_emails import EmailStatusEnum
 from pipeline.context import PipelineContext
 from pipeline.prompts import extract_system, select_prompt
 
@@ -27,7 +28,11 @@ async def analyze(ctx: PipelineContext, session: AsyncSession) -> None:
             f"- {link['text']}: {link['url']}" for link in ctx.links
         )
 
-    email_text = f"Тема {ctx.subject}\n\n{ctx.body}{links_block}"
+    attachments_block = ""
+    if ctx.attachments_text:
+        attachments_block = "\n\nТекст из вложений:\n" + ctx.attachments_text
+
+    email_text = f"Тема {ctx.subject}\n\n{ctx.body}{links_block}{attachments_block}"
     system_name = extract_system(ctx.body)
 
     if system_name:
@@ -56,6 +61,7 @@ async def analyze(ctx: PipelineContext, session: AsyncSession) -> None:
 
         if is_default:
             ctx.ai_summary = result.get("ai_summary")
+            ctx.status = EmailStatusEnum.GREEN
 
     except Exception as err:
         logger.error("GPT analysis failed: {err}", err=err, exc_info=True)

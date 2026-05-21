@@ -21,6 +21,7 @@ from logger import get_logger
 
 from pipeline import run_pipeline
 from pipeline.context import PipelineContext
+from pipeline.steps.parse_attachments import extract_attachments_text
 
 logger = get_logger(__name__)
 
@@ -378,6 +379,9 @@ async def _process_unseen(client):
                         )
                     break
 
+            # Парсим текст из вложений (pptx и др.) пока data в памяти
+            attachments_text = extract_attachments_text(raw_attachments) if raw_attachments else ""
+
             # Загружаем вложения в MinIO (I/O — до пайплайна)
             attachments = []
             if raw_attachments:
@@ -423,6 +427,7 @@ async def _process_unseen(client):
                 attachments=attachments,        # только метаданные + object_key
                 received_at=received_at,
                 raw_html=original_html_key,
+                attachments_text=attachments_text,
             )
             try:
                 await run_pipeline(ctx)

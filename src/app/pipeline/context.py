@@ -22,6 +22,7 @@ class PipelineContext:
     links: list[dict] = field(default_factory=list)
     attachments: list[dict] = field(default_factory=list)
     raw_html: str | None = None                 # оригинальный HTML письма
+    attachments_text: str = ""                  # текст, извлечённый из вложений (pptx и др.)
 
     # ── Шаг 1: save_email ───────────────────────────────
     email_db_id: UUID | None = None             # ID записи в incoming_emails

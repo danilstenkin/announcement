@@ -16,3 +16,4 @@ weaviate-client
 aioimaplib
 packaging
 openai
+python-pptx
