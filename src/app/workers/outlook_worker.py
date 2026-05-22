@@ -404,7 +404,6 @@ async def _process_unseen(client):
             # Встраиваем inline-картинки в HTML и сохраняем в MinIO
             original_html_key = None
             if raw_html:
-                raw_html = _embed_inline_images(raw_html, message)
                 minio = get_minio_client()
                 original_html_key = await minio.upload_file(
                     file_content=raw_html.encode("utf-8"),
