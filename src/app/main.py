@@ -8,7 +8,6 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import JSONResponse
 
 from prometheus_fastapi_instrumentator import Instrumentator
@@ -64,8 +63,6 @@ app = FastAPI(
 
 
 # ==================== Middleware ====================
-
-app.add_middleware(GZipMiddleware, minimum_size=1000)
 
 app.add_middleware(
     CORSMiddleware,
