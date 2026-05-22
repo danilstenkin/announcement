@@ -30,10 +30,10 @@ HTML-разметка для ai_email:
   - Используй стилизованные блоки для визуального выделения:
 
 Стили для блоков:
-  - Критичное (авария, недоступность): <div style="background: #FFF0F0; border-left: 4px solid #E53935; padding: 12px 16px; border-radius: 6px; margin: 4px 0;">содержимое</div>
-  - Положительное (устранено, восстановлено): <div style="background: #F0FFF0; border-left: 4px solid #43A047; padding: 12px 16px; border-radius: 6px; margin: 4px 0;">содержимое</div>
-  - Предупреждение (плановые работы, ограничения): <div style="background: #FFF8E1; border-left: 4px solid #FB8C00; padding: 12px 16px; border-radius: 6px; margin: 4px 0;">содержимое</div>
-  - Информационное (описание, сервисы): <div style="background: #F0F4FF; border-left: 4px solid #1E88E5; padding: 12px 16px; border-radius: 6px; margin: 4px 0;">содержимое</div>
+  - Критичное (авария, недоступность): <div style="background: #FFF0F0; border-left: 4px solid #E53935; padding: 12px 16px; border-radius: 6px; margin: 0;">содержимое</div>
+  - Положительное (устранено, восстановлено): <div style="background: #F0FFF0; border-left: 4px solid #43A047; padding: 12px 16px; border-radius: 6px; margin: 0;">содержимое</div>
+  - Предупреждение (плановые работы, ограничения): <div style="background: #FFF8E1; border-left: 4px solid #FB8C00; padding: 12px 16px; border-radius: 6px; margin: 0;">содержимое</div>
+  - Информационное (описание, сервисы): <div style="background: #F0F4FF; border-left: 4px solid #1E88E5; padding: 12px 16px; border-radius: 6px; margin: 0;">содержимое</div>
 
 Стили для текста:
   - Forte Magenta для критичного: <span style="color: #A31551; font-weight: bold;">текст</span>
