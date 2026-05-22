@@ -401,9 +401,13 @@ async def _process_unseen(client):
                     count=len(attachments), uid=uid,
                 )
 
-            # Встраиваем inline-картинки в HTML и сохраняем в MinIO
+            # Встраиваем inline-картинки в HTML (если результат <= 1 МБ) и сохраняем в MinIO
             original_html_key = None
             if raw_html:
+                embedded = _embed_inline_images(raw_html, message)
+                if len(embedded.encode("utf-8")) <= 1_000_000:
+                    raw_html = embedded
+
                 minio = get_minio_client()
                 original_html_key = await minio.upload_file(
                     file_content=raw_html.encode("utf-8"),
