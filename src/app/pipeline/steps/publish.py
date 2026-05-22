@@ -46,7 +46,7 @@ async def publish(ctx: PipelineContext, session: AsyncSession):
         name=SYSTEM_USER_NAME,
         email=SYSTEM_USER_EMAIL,
         is_ai=True,
-        source="Servise"
+        source=ctx.source
     )
 
     session.add(announcment)
