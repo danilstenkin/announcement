@@ -1,4 +1,3 @@
-import re
 from typing import Optional
 from uuid import UUID
 
@@ -13,13 +12,6 @@ from dependencies.minio import get_minio_client
 from models.ai_analysis import AIEmail
 from models.email_attachment import EmailAttachment
 from models.incoming_emails import EmailStatusEnum, IncomingEmail
-
-_IMG_RE = re.compile(r'<img\s[^>]*/?>', re.IGNORECASE | re.DOTALL)
-_PLACEHOLDER = '<span style="display:inline-block;width:20px;height:20px;background:#E0E0E0;border-radius:4px;text-align:center;line-height:20px;font-size:12px;color:#999;">img</span>'
-
-
-def _strip_images(html: str) -> str:
-    return _IMG_RE.sub(_PLACEHOLDER, html)
 
 router = APIRouter(prefix="/auto-announce", tags=["auto-announce"])
 
@@ -95,7 +87,7 @@ async def get_original_email(email_id: UUID, session: AsyncSession = Depends(get
     response.close()
     response.release_conn()
 
-    return HTMLResponse(content=_strip_images(html_content))
+    return HTMLResponse(content=html_content)
 
 
 @router.get("/emails", response_model=list[IncomingEmailOut])

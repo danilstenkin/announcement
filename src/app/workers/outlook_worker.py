@@ -35,18 +35,6 @@ logger = get_logger(__name__)
 # ── helpers ──────────────────────────────────────────────
 
 
-_BASE64_IMG_RE = re.compile(
-    r'<img\s[^>]*src=["\']data:image/[^"\']+["\'][^>]*/?>',
-    re.IGNORECASE | re.DOTALL,
-)
-
-_PLACEHOLDER_IMG = '<span style="display:inline-block;width:20px;height:20px;background:#E0E0E0;border-radius:4px;text-align:center;line-height:20px;font-size:12px;color:#999;">🖼</span>'
-
-
-def _strip_base64_images(html: str) -> str:
-    """Заменяет base64-картинки в HTML на лёгкий плейсхолдер."""
-    return _BASE64_IMG_RE.sub(_PLACEHOLDER_IMG, html)
-
 
 def _extract_links(html: str) -> list[dict]:
     """
@@ -387,7 +375,6 @@ async def _process_unseen(client):
                             raw_html,
                             flags=re.IGNORECASE,
                         )
-                        raw_html = _strip_base64_images(raw_html)
                     break
 
             # Парсим текст из вложений (pptx и др.) пока data в памяти
