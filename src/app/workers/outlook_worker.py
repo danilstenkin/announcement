@@ -346,7 +346,11 @@ async def _process_unseen(client):
             received_at = _parse_received_at(message)
 
             # Определяем источник
-            source = "Test"
+            _SOURCE_MAP = {
+                "sd_info@Fortebank.com": "ServiceDesk",
+                "komek@Fortebank.com": "komek",
+            }
+            source = _SOURCE_MAP.get(sender_email)
             if source is None:
                 logger.warning(
                     "Unknown sender uid={uid} email={email}, skipping",

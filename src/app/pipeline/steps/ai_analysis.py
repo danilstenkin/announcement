@@ -59,9 +59,9 @@ async def analyze(ctx: PipelineContext, session: AsyncSession) -> None:
         ctx.script_ru = _clean_script(result.get("script_ru"))
         ctx.script_kz = _clean_script(result.get("script_kz"))
 
-        if is_default:
+        if prompt_type in ("default", "service_desk_default"):
             ctx.ai_summary = result.get("ai_summary")
-            ctx.status = EmailStatusEnum.GREEN
+            ctx.status = EmailStatusEnum.RED
 
     except Exception as err:
         logger.error("GPT analysis failed: {err}", err=err, exc_info=True)

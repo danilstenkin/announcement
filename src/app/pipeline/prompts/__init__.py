@@ -21,7 +21,7 @@ def extract_system(text: str) -> str | None:
     return system
 
 def select_prompt(email_body: str, email_from: str) -> tuple[str, str]:
-    if email_from == "DAStenkin@Fortebank.com":  # Service Desk
+    if email_from == "sd_info@Fortebank.com":  # Service Desk
         system = extract_system(email_body)
         if system:
             system_lower = system.lower()
@@ -30,7 +30,7 @@ def select_prompt(email_body: str, email_from: str) -> tuple[str, str]:
                     return prompt, "service_desk"
         return PROMPT_DEFAULT, "service_desk_default"
 
-    # elif email_from == "komek@Fortebank.com":
-    #     return PROMPT_KOMEK, "komek"
+    elif email_from == "komek@Fortebank.com":
+        return PROMPT_KOMEK, "komek"
 
     return PROMPT_DEFAULT, "default"
