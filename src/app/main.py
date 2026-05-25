@@ -9,6 +9,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from fastapi.staticfiles import StaticFiles
 
 from prometheus_fastapi_instrumentator import Instrumentator
 
@@ -84,6 +85,9 @@ app.add_middleware(
 from routers import router  # noqa: E402
 app.include_router(router)
 
+# ==================== Static Files ====================
+app.mount("/static", StaticFiles(directory="static"), name="static")
+
 
 
 
@@ -95,17 +99,6 @@ app.include_router(router)
     description="Check if API is running",
 )
 async def health_check():
-
-    gpt = await app.state.gpt.format_email(
-        email_body="Привет",
-        template="ответь",
-        prompt="привет"
-
-    )
-
-    print(gpt)
-
-    # helth()
     return {
         "status": "healthy",
         "version": settings.API_VERSION,

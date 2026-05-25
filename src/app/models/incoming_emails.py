@@ -24,7 +24,7 @@ class IncomingEmail(Base):
     sender_email = Column(String(255), nullable=True)
     received_at = Column(DateTime(timezone=True), nullable=False)
     status = Column(
-        SQLEnum(EmailStatusEnum),
+        SQLEnum(EmailStatusEnum, schema="cchub_announcements"),
         default=EmailStatusEnum.PROCESSING,
         nullable=False
     )

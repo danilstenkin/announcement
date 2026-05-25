@@ -1,0 +1,469 @@
+from typing import Optional
+from uuid import UUID
+
+from fastapi import APIRouter, Depends, HTTPException, Header, Request
+from fastapi.responses import StreamingResponse
+from pydantic import BaseModel, ConfigDict
+from sqlalchemy import select, update
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from dependencies import get_db
+from models.review_ticket import (
+    ReviewTicket, ReviewHistory,
+    TicketStatusEnum, ReviewActionEnum,
+)
+from models.incoming_emails import IncomingEmail, EmailStatusEnum
+from models.announcement import Announcement, AnnouncementCategoryEnum
+from services.notifications import NotificationsService
+from services.ticket_events import ticket_events
+from config import settings
+
+from urllib.parse import unquote
+from logger import get_logger
+
+logger = get_logger(__name__)
+
+router = APIRouter(prefix="/auto-announce/tickets", tags=["review-tickets"])
+
+SYSTEM_USER_ID = UUID("00000000-0000-0000-0000-000000000000")
+SYSTEM_USER_NAME = "AiAnons"
+SYSTEM_USER_EMAIL = "aiNews@fortebanks.com"
+
+
+# ── Schemas ─────────────────────────────────────────────
+
+class HistoryOut(BaseModel):
+    action: str
+    actor_id: Optional[UUID] = None
+    actor_name: Optional[str] = None
+    comment: Optional[str] = None
+    changes: Optional[dict] = None
+    created_at: Optional[str] = None
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class TicketListOut(BaseModel):
+    id: UUID
+    email_id: UUID
+    status: str
+    assignee_id: Optional[UUID] = None
+    assignee_name: Optional[str] = None
+    sender_email: Optional[str] = None
+    source: Optional[str] = None
+    title: Optional[str] = None
+    ai_summary: Optional[str] = None
+    created_at: Optional[str] = None
+    updated_at: Optional[str] = None
+    history: list[HistoryOut] = []
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class TicketDetailOut(TicketListOut):
+    body: Optional[str] = None
+    script_ru: Optional[str] = None
+    script_kz: Optional[str] = None
+    original_html_key: Optional[str] = None
+
+
+class AssignRequest(BaseModel):
+    assignee_id: UUID
+    assignee_name: str
+
+
+class RevisionRequest(BaseModel):
+    assignee_id: UUID
+    assignee_name: str
+    comment: str
+
+
+class EditRequest(BaseModel):
+    title: Optional[str] = None
+    body: Optional[str] = None
+    script_ru: Optional[str] = None
+    script_kz: Optional[str] = None
+
+
+class RejectRequest(BaseModel):
+    comment: Optional[str] = None
+
+
+# ── Helpers ─────────────────────────────────────────────
+
+def _get_user(
+    x_user_id: str = Header(None, alias="X-User-Id"),
+    x_user_name: str = Header(None, alias="X-User-Name"),
+):
+    return {"id": x_user_id, "name": unquote(x_user_name) if x_user_name else x_user_name}
+
+
+async def _get_ticket(ticket_id: UUID, session: AsyncSession) -> ReviewTicket:
+    result = await session.execute(
+        select(ReviewTicket).where(ReviewTicket.id == ticket_id)
+    )
+    ticket = result.scalar_one_or_none()
+    if not ticket:
+        raise HTTPException(status_code=404, detail="Ticket not found")
+    return ticket
+
+
+def _build_history(history_items) -> list[HistoryOut]:
+    return [
+        HistoryOut(
+            action=h.action.value,
+            actor_id=h.actor_id,
+            actor_name=h.actor_name,
+            comment=h.comment,
+            changes=h.changes,
+            created_at=h.created_at.isoformat() if h.created_at else None,
+        )
+        for h in history_items
+    ]
+
+
+# ── SSE Stream ─────────────────────────────────────────
+
+@router.get("/stream")
+async def ticket_stream(request: Request):
+    q = ticket_events.subscribe()
+
+    async def event_generator():
+        try:
+            yield "data: {\"event_type\": \"connected\"}\n\n"
+            async for chunk in ticket_events.stream(q):
+                if await request.is_disconnected():
+                    break
+                yield chunk
+        finally:
+            ticket_events.unsubscribe(q)
+
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
+    )
+
+
+# ── List & Detail ───────────────────────────────────────
+
+@router.get("", response_model=list[TicketListOut])
+async def list_tickets(
+    status: Optional[str] = None,
+    assignee_id: Optional[UUID] = None,
+    session: AsyncSession = Depends(get_db),
+):
+    query = select(ReviewTicket).order_by(ReviewTicket.created_at.desc())
+
+    if status:
+        query = query.where(ReviewTicket.status == TicketStatusEnum(status))
+    if assignee_id:
+        query = query.where(ReviewTicket.assignee_id == assignee_id)
+
+    if not status:
+        query = query.where(
+            ReviewTicket.status.notin_([TicketStatusEnum.APPROVED, TicketStatusEnum.REJECTED])
+        )
+
+    result = await session.execute(query)
+    tickets = result.scalars().all()
+
+    email_ids = [t.email_id for t in tickets]
+    if email_ids:
+        emails_result = await session.execute(
+            select(IncomingEmail).where(IncomingEmail.id.in_(email_ids))
+        )
+        email_map = {e.id: e for e in emails_result.scalars().all()}
+    else:
+        email_map = {}
+
+    response = []
+    for t in tickets:
+        email = email_map.get(t.email_id)
+        response.append(TicketListOut(
+            id=t.id,
+            email_id=t.email_id,
+            status=t.status.value,
+            assignee_id=t.assignee_id,
+            assignee_name=t.assignee_name,
+            sender_email=email.sender_email if email else None,
+            source=t.source,
+            title=t.title,
+            ai_summary=t.ai_summary,
+            created_at=t.created_at.isoformat() if t.created_at else None,
+            updated_at=t.updated_at.isoformat() if t.updated_at else None,
+            history=_build_history(t.history),
+        ))
+
+    return response
+
+
+@router.get("/{ticket_id}", response_model=TicketDetailOut)
+async def get_ticket(
+    ticket_id: UUID,
+    session: AsyncSession = Depends(get_db),
+):
+    ticket = await _get_ticket(ticket_id, session)
+
+    email_result = await session.execute(
+        select(IncomingEmail).where(IncomingEmail.id == ticket.email_id)
+    )
+    email = email_result.scalar_one_or_none()
+
+    return TicketDetailOut(
+        id=ticket.id,
+        email_id=ticket.email_id,
+        status=ticket.status.value,
+        assignee_id=ticket.assignee_id,
+        assignee_name=ticket.assignee_name,
+        sender_email=email.sender_email if email else None,
+        source=ticket.source,
+        title=ticket.title,
+        body=ticket.body,
+        script_ru=ticket.script_ru,
+        script_kz=ticket.script_kz,
+        ai_summary=ticket.ai_summary,
+        original_html_key=email.original_html_key if email else None,
+        created_at=ticket.created_at.isoformat() if ticket.created_at else None,
+        updated_at=ticket.updated_at.isoformat() if ticket.updated_at else None,
+        history=_build_history(ticket.history),
+    )
+
+
+# ── Actions ─────────────────────────────────────────────
+
+@router.post("/{ticket_id}/assign")
+async def assign_ticket(
+    ticket_id: UUID,
+    req: AssignRequest,
+    session: AsyncSession = Depends(get_db),
+    user: dict = Depends(_get_user),
+):
+    ticket = await _get_ticket(ticket_id, session)
+    if ticket.status in (TicketStatusEnum.APPROVED, TicketStatusEnum.REJECTED):
+        raise HTTPException(400, "Ticket is already closed")
+
+    ticket.assignee_id = req.assignee_id
+    ticket.assignee_name = req.assignee_name
+    ticket.status = TicketStatusEnum.IN_REVIEW
+
+    session.add(ReviewHistory(
+        ticket_id=ticket.id,
+        action=ReviewActionEnum.ASSIGNED,
+        actor_id=UUID(user["id"]) if user["id"] else None,
+        actor_name=user["name"],
+        comment=f"Назначено на {req.assignee_name}",
+    ))
+    await session.commit()
+    await ticket_events.publish(
+        event_type="ASSIGNED", ticket_id=str(ticket.id),
+        actor_name=user["name"], assignee_id=str(req.assignee_id),
+        assignee_name=req.assignee_name, title=ticket.title, status="IN_REVIEW",
+    )
+    return {"status": "assigned"}
+
+
+@router.post("/{ticket_id}/take")
+async def take_ticket(
+    ticket_id: UUID,
+    session: AsyncSession = Depends(get_db),
+    user: dict = Depends(_get_user),
+):
+    ticket = await _get_ticket(ticket_id, session)
+    if ticket.status in (TicketStatusEnum.APPROVED, TicketStatusEnum.REJECTED):
+        raise HTTPException(400, "Ticket is already closed")
+
+    ticket.assignee_id = UUID(user["id"]) if user["id"] else None
+    ticket.assignee_name = user["name"]
+    ticket.status = TicketStatusEnum.IN_REVIEW
+
+    session.add(ReviewHistory(
+        ticket_id=ticket.id,
+        action=ReviewActionEnum.TAKEN,
+        actor_id=UUID(user["id"]) if user["id"] else None,
+        actor_name=user["name"],
+    ))
+    await session.commit()
+    await ticket_events.publish(
+        event_type="TAKEN", ticket_id=str(ticket.id),
+        actor_name=user["name"], assignee_id=user["id"],
+        assignee_name=user["name"], title=ticket.title, status="IN_REVIEW",
+    )
+    return {"status": "taken"}
+
+
+@router.post("/{ticket_id}/revision")
+async def send_to_revision(
+    ticket_id: UUID,
+    req: RevisionRequest,
+    session: AsyncSession = Depends(get_db),
+    user: dict = Depends(_get_user),
+):
+    ticket = await _get_ticket(ticket_id, session)
+    if ticket.status in (TicketStatusEnum.APPROVED, TicketStatusEnum.REJECTED):
+        raise HTTPException(400, "Ticket is already closed")
+
+    ticket.assignee_id = req.assignee_id
+    ticket.assignee_name = req.assignee_name
+    ticket.status = TicketStatusEnum.REVISION
+
+    session.add(ReviewHistory(
+        ticket_id=ticket.id,
+        action=ReviewActionEnum.SENT_TO_REVISION,
+        actor_id=UUID(user["id"]) if user["id"] else None,
+        actor_name=user["name"],
+        comment=req.comment,
+    ))
+    await session.commit()
+    await ticket_events.publish(
+        event_type="SENT_TO_REVISION", ticket_id=str(ticket.id),
+        actor_name=user["name"], assignee_id=str(req.assignee_id),
+        assignee_name=req.assignee_name, title=ticket.title,
+        comment=req.comment, status="REVISION",
+    )
+    return {"status": "revision"}
+
+
+@router.post("/{ticket_id}/edit")
+async def edit_ticket(
+    ticket_id: UUID,
+    req: EditRequest,
+    session: AsyncSession = Depends(get_db),
+    user: dict = Depends(_get_user),
+):
+    ticket = await _get_ticket(ticket_id, session)
+    if ticket.status in (TicketStatusEnum.APPROVED, TicketStatusEnum.REJECTED):
+        raise HTTPException(400, "Ticket is already closed")
+
+    changes = {}
+    if req.title is not None and req.title != ticket.title:
+        changes["title"] = {"old": ticket.title, "new": req.title}
+        ticket.title = req.title
+    if req.body is not None and req.body != ticket.body:
+        changes["body"] = {"old": "...", "new": "..."}
+        ticket.body = req.body
+    if req.script_ru is not None and req.script_ru != ticket.script_ru:
+        changes["script_ru"] = {"old": ticket.script_ru, "new": req.script_ru}
+        ticket.script_ru = req.script_ru
+    if req.script_kz is not None and req.script_kz != ticket.script_kz:
+        changes["script_kz"] = {"old": ticket.script_kz, "new": req.script_kz}
+        ticket.script_kz = req.script_kz
+
+    if changes:
+        session.add(ReviewHistory(
+            ticket_id=ticket.id,
+            action=ReviewActionEnum.EDITED,
+            actor_id=UUID(user["id"]) if user["id"] else None,
+            actor_name=user["name"],
+            changes=changes,
+        ))
+
+    await session.commit()
+    if changes:
+        await ticket_events.publish(
+            event_type="EDITED", ticket_id=str(ticket.id),
+            actor_name=user["name"], title=ticket.title, status=ticket.status.value,
+        )
+    return {"status": "edited", "changed_fields": list(changes.keys())}
+
+
+# ── Approve & Reject ────────────────────────────────────
+
+@router.post("/{ticket_id}/approve")
+async def approve_ticket(
+    ticket_id: UUID,
+    session: AsyncSession = Depends(get_db),
+    user: dict = Depends(_get_user),
+):
+    ticket = await _get_ticket(ticket_id, session)
+    if ticket.status in (TicketStatusEnum.APPROVED, TicketStatusEnum.REJECTED):
+        raise HTTPException(400, "Ticket is already closed")
+
+    if not ticket.title:
+        raise HTTPException(400, "Cannot approve: title is empty")
+
+    announcement = Announcement(
+        title=ticket.title,
+        category=AnnouncementCategoryEnum.NEW,
+        text=ticket.body or "",
+        script_ru=ticket.script_ru,
+        script_kz=ticket.script_kz,
+        is_hidden=False,
+        created_by=SYSTEM_USER_ID,
+        name=SYSTEM_USER_NAME,
+        email=SYSTEM_USER_EMAIL,
+        is_ai=True,
+        source=ticket.source,
+    )
+    session.add(announcement)
+    await session.flush()
+
+    ticket.status = TicketStatusEnum.APPROVED
+
+    await session.execute(
+        update(IncomingEmail)
+        .where(IncomingEmail.id == ticket.email_id)
+        .values(status=EmailStatusEnum.DONE)
+    )
+
+    session.add(ReviewHistory(
+        ticket_id=ticket.id,
+        action=ReviewActionEnum.APPROVED,
+        actor_id=UUID(user["id"]) if user["id"] else None,
+        actor_name=user["name"],
+        comment=f"Опубликован как анонс {announcement.id}",
+    ))
+
+    await session.commit()
+
+    await ticket_events.publish(
+        event_type="APPROVED", ticket_id=str(ticket.id),
+        actor_name=user["name"], title=ticket.title, status="APPROVED",
+    )
+
+    try:
+        notifications = NotificationsService(settings.EVENTS_WEBHOOK_URL)
+        await notifications.publish_new_announcement(announcement)
+    except Exception as e:
+        logger.error("Failed to send SSE notification: {err}", err=e)
+
+    return {"status": "approved", "announcement_id": str(announcement.id)}
+
+
+@router.post("/{ticket_id}/reject")
+async def reject_ticket(
+    ticket_id: UUID,
+    req: RejectRequest,
+    session: AsyncSession = Depends(get_db),
+    user: dict = Depends(_get_user),
+):
+    ticket = await _get_ticket(ticket_id, session)
+    if ticket.status in (TicketStatusEnum.APPROVED, TicketStatusEnum.REJECTED):
+        raise HTTPException(400, "Ticket is already closed")
+
+    ticket.status = TicketStatusEnum.REJECTED
+
+    await session.execute(
+        update(IncomingEmail)
+        .where(IncomingEmail.id == ticket.email_id)
+        .values(status=EmailStatusEnum.DONE)
+    )
+
+    session.add(ReviewHistory(
+        ticket_id=ticket.id,
+        action=ReviewActionEnum.REJECTED,
+        actor_id=UUID(user["id"]) if user["id"] else None,
+        actor_name=user["name"],
+        comment=req.comment,
+    ))
+
+    await session.commit()
+    await ticket_events.publish(
+        event_type="REJECTED", ticket_id=str(ticket.id),
+        actor_name=user["name"], title=ticket.title, status="REJECTED",
+    )
+    return {"status": "rejected"}

@@ -30,11 +30,11 @@ PROMPT_KOMEK = f"""Ты — ИИ-информатор входящих писе�
 - Неработоспособность кассы: Неработоспособность кассы в отделении
 
 Шаблон ai_email для изменения графика:
-<div style="background: #FFF8E1; border-left: 4px solid #FB8C00; padding: 12px 16px; border-radius: 6px; margin: 0;">
+<div style="background: #FFF8E1; border-left: 4px solid #FB8C00; padding: 12px 16px; border-radius: 6px; margin: 8px 0 0 0;">
 <h2 style="font-size: 1.4em; margin: 0 0 8px 0;"><span style="color: #E65100; font-weight: bold;">Изменение графика работы</span></h2>
 <p>Отделение <span style="background: #E8EAF6; color: #283593; padding: 2px 8px; border-radius: 4px; font-size: 0.9em;">[название отделения]</span> в г. <b>[город]</b> временно изменяет график работы.</p>
 </div>
-<div style="background: #F0F4FF; border-left: 4px solid #1E88E5; padding: 12px 16px; border-radius: 6px; margin: 0;">
+<div style="background: #F0F4FF; border-left: 4px solid #1E88E5; padding: 12px 16px; border-radius: 6px; margin: 8px 0 0 0;">
 <p><b>Изменение:</b> [описание изменения — обеденный перерыв, сокращённый день и т.д.]</p>
 <p><b>Адрес:</b> [адрес отделения]</p>
 <p><b>Новый график:</b></p>
@@ -42,11 +42,11 @@ PROMPT_KOMEK = f"""Ты — ИИ-информатор входящих писе�
 </div>
 
 Шаблон ai_email для неработоспособности отделения:
-<div style="background: #FFF0F0; border-left: 4px solid #E53935; padding: 12px 16px; border-radius: 6px; margin: 0;">
+<div style="background: #FFF0F0; border-left: 4px solid #E53935; padding: 12px 16px; border-radius: 6px; margin: 8px 0 0 0;">
 <h2 style="font-size: 1.4em; margin: 0 0 8px 0;"><span style="color: #A31551; font-weight: bold;">Внимание!</span></h2>
 <p>Отделение <span style="background: #E8EAF6; color: #283593; padding: 2px 8px; border-radius: 4px; font-size: 0.9em;">[название отделения]</span> в г. <b>[город]</b> временно не работает / работает в сокращённом режиме.</p>
 </div>
-<div style="background: #F0F4FF; border-left: 4px solid #1E88E5; padding: 12px 16px; border-radius: 6px; margin: 0;">
+<div style="background: #F0F4FF; border-left: 4px solid #1E88E5; padding: 12px 16px; border-radius: 6px; margin: 8px 0 0 0;">
 <p><b>Причина:</b> [техническая причина, если указана]</p>
 <p><b>Дата:</b> <b>[дата]</b></p>
 <p><b>Режим работы:</b> [до какого времени работает / не работает]</p>
@@ -54,11 +54,11 @@ PROMPT_KOMEK = f"""Ты — ИИ-информатор входящих писе�
 </div>
 
 Шаблон ai_email для неработоспособности кассы:
-<div style="background: #FFF0F0; border-left: 4px solid #E53935; padding: 12px 16px; border-radius: 6px; margin: 0;">
+<div style="background: #FFF0F0; border-left: 4px solid #E53935; padding: 12px 16px; border-radius: 6px; margin: 8px 0 0 0;">
 <h2 style="font-size: 1.4em; margin: 0 0 8px 0;"><span style="color: #A31551; font-weight: bold;">Внимание!</span></h2>
 <p>Касса в отделении <span style="background: #E8EAF6; color: #283593; padding: 2px 8px; border-radius: 4px; font-size: 0.9em;">[название отделения]</span> в г. <b>[город]</b> временно недоступна.</p>
 </div>
-<div style="background: #F0F4FF; border-left: 4px solid #1E88E5; padding: 12px 16px; border-radius: 6px; margin: 0;">
+<div style="background: #F0F4FF; border-left: 4px solid #1E88E5; padding: 12px 16px; border-radius: 6px; margin: 8px 0 0 0;">
 <p><b>Причина:</b> [причина, если указана]</p>
 <p><b>Период:</b> [когда не работает]</p>
 <p><b>Адрес:</b> [адрес отделения]</p>
@@ -77,7 +77,7 @@ PROMPT_KOMEK = f"""Ты — ИИ-информатор входящих писе�
 Об изменениях сообщим дополнительно
 
 ОЖИДАЕМЫЙ JSON:
-{{"title": "Изменение графика работы отделения", "ai_email": "<div style=\\"background: #FFF8E1; border-left: 4px solid #FB8C00; padding: 12px 16px; border-radius: 6px; margin: 0;\\"><h2 style=\\"font-size: 1.4em; margin: 0 0 8px 0;\\"><span style=\\"color: #E65100; font-weight: bold;\\">Изменение графика работы</span></h2><p>Отделение <span style=\\"background: #E8EAF6; color: #283593; padding: 2px 8px; border-radius: 4px; font-size: 0.9em;\\">Forte «Тельмана»</span> в г. <b>Атырау</b> временно изменяет график работы.</p></div><div style=\\"background: #F0F4FF; border-left: 4px solid #1E88E5; padding: 12px 16px; border-radius: 6px; margin: 0;\\"><p><b>Изменение:</b> касса работает с обеденным перерывом с <b>13:00</b> до <b>14:00</b></p><p><b>Адрес:</b> г. Атырау</p></div>", "ai_summary": "Обеденный перерыв кассы Тельмана Атырау", "script_ru": "Уважаемый клиент, уведомляем вас о том, что касса в отделении Forte «Тельмана» в г. Атырау временно работает с обеденным перерывом с 13:00 до 14:00. Приносим извинения за доставленные неудобства.", "script_kz": "Құрметті клиент, Атырау қаласындағы Forte «Тельмана» бөлімшесінің кассасы уақытша 13:00-ден 14:00-ге дейін түскі үзіліспен жұмыс істейтінін хабарлаймыз. Келтірілген қолайсыздықтар үшін кешірім сұраймыз."}}
+{{"title": "Изменение графика работы отделения", "ai_email": "<div style=\\"background: #FFF8E1; border-left: 4px solid #FB8C00; padding: 12px 16px; border-radius: 6px; margin: 8px 0 0 0;\\"><h2 style=\\"font-size: 1.4em; margin: 0 0 8px 0;\\"><span style=\\"color: #E65100; font-weight: bold;\\">Изменение графика работы</span></h2><p>Отделение <span style=\\"background: #E8EAF6; color: #283593; padding: 2px 8px; border-radius: 4px; font-size: 0.9em;\\">Forte «Тельмана»</span> в г. <b>Атырау</b> временно изменяет график работы.</p></div><div style=\\"background: #F0F4FF; border-left: 4px solid #1E88E5; padding: 12px 16px; border-radius: 6px; margin: 8px 0 0 0;\\"><p><b>Изменение:</b> касса работает с обеденным перерывом с <b>13:00</b> до <b>14:00</b></p><p><b>Адрес:</b> г. Атырау</p></div>", "ai_summary": "Обеденный перерыв кассы Тельмана Атырау", "script_ru": "Уважаемый клиент, уведомляем вас о том, что касса в отделении Forte «Тельмана» в г. Атырау временно работает с обеденным перерывом с 13:00 до 14:00. Приносим извинения за доставленные неудобства.", "script_kz": "Құрметті клиент, Атырау қаласындағы Forte «Тельмана» бөлімшесінің кассасы уақытша 13:00-ден 14:00-ге дейін түскі үзіліспен жұмыс істейтінін хабарлаймыз. Келтірілген қолайсыздықтар үшін кешірім сұраймыз."}}
 
 Пример 2 (неработоспособность отделения):
 ВХОДЯЩЕЕ ПИСЬМО:
@@ -85,5 +85,5 @@ PROMPT_KOMEK = f"""Ты — ИИ-информатор входящих писе�
 Сегодня 06.05.2026 ЦБО «Капшагай» по техническим причинам будет работать до 17:00 ч.
 
 ОЖИДАЕМЫЙ JSON:
-{{"title": "Неработоспособность отделения", "ai_email": "<div style=\\"background: #FFF0F0; border-left: 4px solid #E53935; padding: 12px 16px; border-radius: 6px; margin: 0;\\"><h2 style=\\"font-size: 1.4em; margin: 0 0 8px 0;\\"><span style=\\"color: #A31551; font-weight: bold;\\">Внимание!</span></h2><p>Отделение <span style=\\"background: #E8EAF6; color: #283593; padding: 2px 8px; border-radius: 4px; font-size: 0.9em;\\">ЦБО «Капшагай»</span> в г. <b>Конаев (Капшагай)</b> <b>06.05.2026</b> по техническим причинам работает в сокращённом режиме.</p></div><div style=\\"background: #F0F4FF; border-left: 4px solid #1E88E5; padding: 12px 16px; border-radius: 6px; margin: 0;\\"><p><b>Причина:</b> технические причины</p><p><b>Режим работы:</b> до <b>17:00</b></p></div>", "ai_summary": "ЦБО Капшагай работает до 17:00", "script_ru": "Уважаемый клиент, уведомляем вас о том, что сегодня, 06.05.2026, отделение ЦБО «Капшагай» по техническим причинам работает до 17:00. Приносим извинения за доставленные неудобства.", "script_kz": "Құрметті клиент, бүгін 06.05.2026 ЦБО «Қапшағай» бөлімшесі техникалық себептермен сағат 17:00-ге дейін жұмыс істейтінін хабарлаймыз. Келтірілген қолайсыздықтар үшін кешірім сұраймыз."}}
+{{"title": "Неработоспособность отделения", "ai_email": "<div style=\\"background: #FFF0F0; border-left: 4px solid #E53935; padding: 12px 16px; border-radius: 6px; margin: 8px 0 0 0;\\"><h2 style=\\"font-size: 1.4em; margin: 0 0 8px 0;\\"><span style=\\"color: #A31551; font-weight: bold;\\">Внимание!</span></h2><p>Отделение <span style=\\"background: #E8EAF6; color: #283593; padding: 2px 8px; border-radius: 4px; font-size: 0.9em;\\">ЦБО «Капшагай»</span> в г. <b>Конаев (Капшагай)</b> <b>06.05.2026</b> по техническим причинам работает в сокращённом режиме.</p></div><div style=\\"background: #F0F4FF; border-left: 4px solid #1E88E5; padding: 12px 16px; border-radius: 6px; margin: 8px 0 0 0;\\"><p><b>Причина:</b> технические причины</p><p><b>Режим работы:</b> до <b>17:00</b></p></div>", "ai_summary": "ЦБО Капшагай работает до 17:00", "script_ru": "Уважаемый клиент, уведомляем вас о том, что сегодня, 06.05.2026, отделение ЦБО «Капшагай» по техническим причинам работает до 17:00. Приносим извинения за доставленные неудобства.", "script_kz": "Құрметті клиент, бүгін 06.05.2026 ЦБО «Қапшағай» бөлімшесі техникалық себептермен сағат 17:00-ге дейін жұмыс істейтінін хабарлаймыз. Келтірілген қолайсыздықтар үшін кешірім сұраймыз."}}
 """

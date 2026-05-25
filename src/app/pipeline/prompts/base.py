@@ -17,6 +17,10 @@ BASE_RULES = """Правила:
 - Вместо "деплой" пиши "установка обновления"
 - Вместо "баг/инцидент" пиши "ошибка" или "сбой"
 - Вместо "фича" пиши "новая возможность"
+- Вместо "аварийно-восстановительные работы" пиши "временные технические работы"
+- Вместо "информационное уведомление" пиши "Важно!"
+- Вместо "наблюдаются проблемы" пиши "временные ограничения в работе"
+- Вместо "работает в штатном режиме" пиши "доступен и работает как обычно"
 - Объясняй так, чтобы понял человек без IT-образования
 - Используй короткие предложения
 
@@ -25,15 +29,15 @@ HTML-разметка для ai_email:
   - НЕ используй <ul><li> для списков. Вместо этого используй <p>· элемент</p> для каждого пункта
   - <h2 style="font-size: 1.4em; margin: 0 0 8px 0;"> для заголовков секций (крупный шрифт)
   - <p> для абзацев
-  - <br> для переноса строки
-  - Добавляй <br> между смысловыми блоками для визуальных отступов
+  - <br> для переноса строки внутри блока
+  - НЕ добавляй <br> между div-блоками — отступы уже заданы через margin
   - Используй стилизованные блоки для визуального выделения:
 
 Стили для блоков:
-  - Критичное (авария, недоступность): <div style="background: #FFF0F0; border-left: 4px solid #E53935; padding: 12px 16px; border-radius: 6px; margin: 0;">содержимое</div>
-  - Положительное (устранено, восстановлено): <div style="background: #F0FFF0; border-left: 4px solid #43A047; padding: 12px 16px; border-radius: 6px; margin: 0;">содержимое</div>
-  - Предупреждение (плановые работы, ограничения): <div style="background: #FFF8E1; border-left: 4px solid #FB8C00; padding: 12px 16px; border-radius: 6px; margin: 0;">содержимое</div>
-  - Информационное (описание, сервисы): <div style="background: #F0F4FF; border-left: 4px solid #1E88E5; padding: 12px 16px; border-radius: 6px; margin: 0;">содержимое</div>
+  - Критичное (авария, недоступность): <div style="background: #FFF0F0; border-left: 4px solid #E53935; padding: 12px 16px; border-radius: 6px; margin: 8px 0 0 0;">содержимое</div>
+  - Положительное (устранено, восстановлено): <div style="background: #F0FFF0; border-left: 4px solid #43A047; padding: 12px 16px; border-radius: 6px; margin: 8px 0 0 0;">содержимое</div>
+  - Предупреждение (плановые работы, ограничения): <div style="background: #FFF8E1; border-left: 4px solid #FB8C00; padding: 12px 16px; border-radius: 6px; margin: 8px 0 0 0;">содержимое</div>
+  - Информационное (описание, сервисы): <div style="background: #F0F4FF; border-left: 4px solid #1E88E5; padding: 12px 16px; border-radius: 6px; margin: 8px 0 0 0;">содержимое</div>
 
 Стили для текста:
   - Forte Magenta для критичного: <span style="color: #A31551; font-weight: bold;">текст</span>

@@ -1,0 +1,606 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Review Tickets Dashboard</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #f5f5f5; color: #333; }
+
+  .header { background: #1a1a2e; color: white; padding: 12px 24px; display: flex; justify-content: space-between; align-items: center; }
+  .header h1 { font-size: 1.2em; }
+  .header .config { display: flex; gap: 8px; align-items: center; }
+  .header input { padding: 6px 10px; border-radius: 4px; border: none; font-size: 0.85em; }
+  .header input#apiUrl { width: 240px; }
+
+  .user-bar { background: #16213e; color: white; padding: 10px 24px; display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+  .user-btn { padding: 8px 16px; border-radius: 20px; border: 2px solid transparent; cursor: pointer; font-size: 0.85em; font-weight: 600; background: rgba(255,255,255,0.1); color: white; transition: all 0.15s; }
+  .user-btn:hover { background: rgba(255,255,255,0.2); }
+  .user-btn.active { border-color: #e94560; background: rgba(233,69,96,0.2); }
+  .user-current { font-size: 0.85em; color: #aaa; margin-left: auto; }
+  .user-current b { color: #e94560; }
+
+  .filters { padding: 12px 24px; display: flex; gap: 12px; align-items: center; flex-wrap: wrap; background: white; border-bottom: 1px solid #eee; }
+  .filters select, .filters button { padding: 8px 14px; border-radius: 6px; border: 1px solid #ddd; font-size: 0.9em; cursor: pointer; }
+  .filters button { background: #1a1a2e; color: white; border: none; }
+  .filters button:hover { background: #16213e; }
+  .filter-count { font-size: 0.85em; color: #999; margin-left: 8px; }
+
+  .container { display: flex; gap: 20px; padding: 16px 24px; min-height: calc(100vh - 180px); }
+  .list-panel { width: 400px; flex-shrink: 0; overflow-y: auto; max-height: calc(100vh - 180px); }
+  .detail-panel { flex: 1; background: white; border-radius: 8px; padding: 24px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); overflow-y: auto; max-height: calc(100vh - 180px); }
+
+  .ticket-card { background: white; border-radius: 8px; padding: 14px; margin-bottom: 8px; cursor: pointer; box-shadow: 0 1px 3px rgba(0,0,0,0.08); border-left: 4px solid #ccc; transition: all 0.15s; }
+  .ticket-card:hover { box-shadow: 0 2px 8px rgba(0,0,0,0.15); }
+  .ticket-card.active { border-left-color: #1a1a2e; background: #f0f0ff; }
+  .ticket-card.mine { background: #FFFDE7; }
+  .ticket-card.mine.active { background: #f0f0ff; }
+  .ticket-card.status-PENDING_REVIEW { border-left-color: #FB8C00; }
+  .ticket-card.status-IN_REVIEW { border-left-color: #1E88E5; }
+  .ticket-card.status-REVISION { border-left-color: #E53935; }
+  .ticket-card.status-APPROVED { border-left-color: #43A047; }
+  .ticket-card.status-REJECTED { border-left-color: #9E9E9E; }
+
+  .ticket-title { font-weight: 600; font-size: 0.95em; margin-bottom: 4px; }
+  .ticket-meta { font-size: 0.8em; color: #666; display: flex; gap: 8px; flex-wrap: wrap; }
+
+  .badge { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 0.75em; font-weight: 600; }
+  .badge-PENDING_REVIEW { background: #FFF3E0; color: #E65100; }
+  .badge-IN_REVIEW { background: #E3F2FD; color: #1565C0; }
+  .badge-REVISION { background: #FFEBEE; color: #C62828; }
+  .badge-APPROVED { background: #E8F5E9; color: #2E7D32; }
+  .badge-REJECTED { background: #F5F5F5; color: #616161; }
+  .badge-mine { background: #FFFDE7; color: #F57F17; font-size: 0.7em; margin-left: 4px; }
+
+  .detail-header { display: flex; justify-content: space-between; align-items: start; margin-bottom: 16px; }
+  .detail-title { font-size: 1.3em; font-weight: 700; }
+  .detail-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+  .detail-actions button { padding: 8px 16px; border-radius: 6px; border: none; cursor: pointer; font-size: 0.85em; font-weight: 600; }
+  .btn-take { background: #1E88E5; color: white; }
+  .btn-assign { background: #5C6BC0; color: white; }
+  .btn-approve { background: #43A047; color: white; }
+  .btn-reject { background: #E53935; color: white; }
+  .btn-revision { background: #FB8C00; color: white; }
+  .btn-edit { background: #7B1FA2; color: white; }
+
+  .section { margin-bottom: 20px; }
+  .section-label { font-size: 0.8em; color: #999; text-transform: uppercase; margin-bottom: 6px; font-weight: 600; }
+  .section-content { background: #f9f9f9; border-radius: 6px; padding: 12px; font-size: 0.9em; line-height: 1.5; }
+  .section-content.html-content { background: white; border: 1px solid #eee; }
+
+  .history-item { padding: 10px 0; border-bottom: 1px solid #f0f0f0; display: flex; gap: 12px; }
+  .history-item:last-child { border-bottom: none; }
+  .history-dot { width: 10px; height: 10px; border-radius: 50%; margin-top: 5px; flex-shrink: 0; }
+  .history-dot.CREATED { background: #9E9E9E; }
+  .history-dot.ASSIGNED { background: #5C6BC0; }
+  .history-dot.TAKEN { background: #1E88E5; }
+  .history-dot.SENT_TO_REVISION { background: #FB8C00; }
+  .history-dot.EDITED { background: #7B1FA2; }
+  .history-dot.APPROVED { background: #43A047; }
+  .history-dot.REJECTED { background: #E53935; }
+  .history-text { font-size: 0.85em; }
+  .history-actor { font-weight: 600; }
+  .history-comment { color: #555; font-style: italic; margin-top: 2px; }
+  .history-time { color: #999; font-size: 0.8em; }
+
+  .modal-overlay { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 100; justify-content: center; align-items: center; }
+  .modal-overlay.show { display: flex; }
+  .modal { background: white; border-radius: 12px; padding: 24px; width: 700px; max-width: 90vw; max-height: 80vh; overflow-y: auto; }
+
+  .editor-toggle { display: flex; gap: 0; margin-bottom: 8px; }
+  .editor-toggle button { padding: 6px 14px; border: 1px solid #ddd; background: #f5f5f5; cursor: pointer; font-size: 0.8em; }
+  .editor-toggle button:first-child { border-radius: 6px 0 0 6px; }
+  .editor-toggle button:last-child { border-radius: 0 6px 6px 0; }
+  .editor-toggle button.active { background: #1a1a2e; color: white; border-color: #1a1a2e; }
+  .visual-editor { border: 1px solid #ddd; border-radius: 6px; padding: 12px; min-height: 200px; font-size: 0.9em; line-height: 1.5; outline: none; overflow-y: auto; max-height: 400px; }
+  .visual-editor:focus { border-color: #1a1a2e; }
+  .modal h3 { margin-bottom: 16px; }
+  .modal label { display: block; font-size: 0.85em; font-weight: 600; margin-bottom: 4px; margin-top: 12px; }
+  .modal select { width: 100%; padding: 10px 12px; border: 1px solid #ddd; border-radius: 6px; font-size: 0.95em; }
+  .modal input, .modal textarea { width: 100%; padding: 8px 12px; border: 1px solid #ddd; border-radius: 6px; font-size: 0.9em; font-family: inherit; }
+  .modal textarea { min-height: 100px; resize: vertical; }
+  .modal .modal-actions { display: flex; gap: 8px; margin-top: 16px; justify-content: flex-end; }
+  .modal .modal-actions button { padding: 8px 20px; border-radius: 6px; border: none; cursor: pointer; font-weight: 600; }
+  .modal .btn-cancel { background: #eee; }
+  .modal .btn-submit { background: #1a1a2e; color: white; }
+
+  .empty { text-align: center; color: #999; padding: 40px; }
+  .loading { text-align: center; color: #999; padding: 20px; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>Review Tickets</h1>
+  <div class="config">
+    <input id="apiUrl" placeholder="API URL" value="http://localhost:8004">
+  </div>
+</div>
+
+<div class="user-bar" id="userBar"></div>
+
+<div class="filters">
+  <select id="statusFilter" onchange="loadTickets()">
+    <option value="">Активные</option>
+    <option value="PENDING_REVIEW">Ожидает проверки</option>
+    <option value="IN_REVIEW">В работе</option>
+    <option value="REVISION">На доработке</option>
+    <option value="APPROVED">Одобренные</option>
+    <option value="REJECTED">Отклонённые</option>
+  </select>
+  <label style="font-size:0.9em;cursor:pointer;display:flex;align-items:center;gap:4px;user-select:none">
+    <input type="checkbox" id="myFilter" onchange="renderList()"> На мне
+  </label>
+  <button onclick="loadTickets()">Обновить</button>
+  <span class="filter-count" id="ticketCount"></span>
+</div>
+
+<div class="container">
+  <div class="list-panel" id="ticketList">
+    <div class="loading">Загрузка...</div>
+  </div>
+  <div class="detail-panel" id="ticketDetail">
+    <div class="empty">Выберите тикет из списка</div>
+  </div>
+</div>
+
+<!-- Modals -->
+<div class="modal-overlay" id="assignModal">
+  <div class="modal">
+    <h3>Назначить на тренера</h3>
+    <label>Выберите тренера</label>
+    <select id="assignSelect" onchange="onTrainerSelect(this, 'assignId', 'assignName', 'assignCustom')"></select>
+    <div id="assignCustom" style="display:none;margin-top:8px">
+      <label>UUID</label>
+      <input id="assignId" placeholder="UUID">
+      <label>Имя</label>
+      <input id="assignName" placeholder="Фамилия Имя">
+    </div>
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="closeModal('assignModal')">Отмена</button>
+      <button class="btn-submit" onclick="doAssign()">Назначить</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="revisionModal">
+  <div class="modal">
+    <h3>Отправить на доработку</h3>
+    <label>Кому отправить</label>
+    <select id="revisionSelect" onchange="onTrainerSelect(this, 'revisionId', 'revisionName', 'revisionCustom')"></select>
+    <div id="revisionCustom" style="display:none;margin-top:8px">
+      <label>UUID</label>
+      <input id="revisionId" placeholder="UUID">
+      <label>Имя</label>
+      <input id="revisionName" placeholder="Фамилия Имя">
+    </div>
+    <label>Комментарий</label>
+    <textarea id="revisionComment" placeholder="Что нужно исправить..."></textarea>
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="closeModal('revisionModal')">Отмена</button>
+      <button class="btn-submit" onclick="doRevision()">Отправить</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="editModal">
+  <div class="modal">
+    <h3>Редактировать</h3>
+    <label>Заголовок</label>
+    <input id="editTitle">
+    <label>Текст анонса</label>
+    <div class="editor-toggle">
+      <button class="active" onclick="switchEditorMode('visual')">Визуально</button>
+      <button onclick="switchEditorMode('html')">HTML</button>
+    </div>
+    <div id="editBodyVisual" class="visual-editor" contenteditable="true"></div>
+    <textarea id="editBodyHtml" style="min-height:200px;display:none;font-family:monospace;font-size:0.85em"></textarea>
+    <label>Скрипт RU</label>
+    <textarea id="editScriptRu"></textarea>
+    <label>Скрипт KZ</label>
+    <textarea id="editScriptKz"></textarea>
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="closeModal('editModal')">Отмена</button>
+      <button class="btn-submit" onclick="doEdit()">Сохранить</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="rejectModal">
+  <div class="modal">
+    <h3>Отклонить тикет</h3>
+    <label>Комментарий (опционально)</label>
+    <textarea id="rejectComment" placeholder="Причина отклонения..."></textarea>
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="closeModal('rejectModal')">Отмена</button>
+      <button class="btn-submit" style="background:#E53935" onclick="doReject()">Отклонить</button>
+    </div>
+  </div>
+</div>
+
+<script>
+let currentTicketId = null;
+let tickets = [];
+let currentUser = null;
+
+const USERS = [
+  { id: '11111111-1111-1111-1111-111111111111', name: 'Асылбекова Айжан', short: 'Айжан' },
+  { id: '22222222-2222-2222-2222-222222222222', name: 'Калиев Бауыржан', short: 'Бауыржан' },
+  { id: '33333333-3333-3333-3333-333333333333', name: 'Нурланова Динара', short: 'Динара' },
+  { id: '44444444-4444-4444-4444-444444444444', name: 'Сагатов Ерлан', short: 'Ерлан' },
+  { id: '55555555-5555-5555-5555-555555555555', name: 'Стенкин Данил', short: 'Данил' },
+];
+
+function switchUser(idx) {
+  currentUser = USERS[idx];
+  renderUserBar();
+  loadTickets();
+}
+
+function renderUserBar() {
+  const bar = document.getElementById('userBar');
+  bar.innerHTML = USERS.map((u, i) =>
+    `<button class="user-btn ${currentUser && currentUser.id === u.id ? 'active' : ''}" onclick="switchUser(${i})">${u.short}</button>`
+  ).join('')
+    + `<span class="user-current">Вы: <b>${currentUser ? currentUser.name : '—'}</b></span>`;
+}
+
+function api() { return document.getElementById('apiUrl').value.replace(/\/+$/, ''); }
+function headers() {
+  return {
+    'Content-Type': 'application/json',
+    'X-User-Id': currentUser ? currentUser.id : '',
+    'X-User-Name': currentUser ? encodeURIComponent(currentUser.name) : '',
+  };
+}
+
+function buildTrainerOptions(selectId) {
+  const sel = document.getElementById(selectId);
+  const others = USERS.filter(u => !currentUser || u.id !== currentUser.id);
+  sel.innerHTML = '<option value="">— Выберите —</option>'
+    + others.map(t => `<option value="${t.id}" data-name="${t.name}">${t.name}</option>`).join('')
+    + '<option value="__custom__">Другой...</option>';
+}
+
+function onTrainerSelect(sel, idField, nameField, customDiv) {
+  const val = sel.value;
+  if (val === '__custom__') {
+    document.getElementById(customDiv).style.display = 'block';
+    document.getElementById(idField).value = '';
+    document.getElementById(nameField).value = '';
+  } else {
+    document.getElementById(customDiv).style.display = 'none';
+    document.getElementById(idField).value = val;
+    document.getElementById(nameField).value = sel.options[sel.selectedIndex].dataset.name || '';
+  }
+}
+
+const ACTION_LABELS = {
+  CREATED: 'Создан',
+  ASSIGNED: 'Назначен',
+  TAKEN: 'Взят в работу',
+  SENT_TO_REVISION: 'На доработку',
+  EDITED: 'Отредактирован',
+  APPROVED: 'Одобрен',
+  REJECTED: 'Отклонён',
+};
+
+const STATUS_LABELS = {
+  PENDING_REVIEW: 'Ожидает проверки',
+  IN_REVIEW: 'В работе',
+  REVISION: 'На доработке',
+  APPROVED: 'Одобрен',
+  REJECTED: 'Отклонён',
+};
+
+async function loadTickets() {
+  const status = document.getElementById('statusFilter').value;
+  const url = status
+    ? `${api()}/auto-announce/tickets?status=${status}`
+    : `${api()}/auto-announce/tickets`;
+
+  document.getElementById('ticketList').innerHTML = '<div class="loading">Загрузка...</div>';
+
+  try {
+    const res = await fetch(url);
+    if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+    tickets = await res.json();
+    renderList();
+  } catch (e) {
+    console.error('loadTickets error:', e);
+    document.getElementById('ticketList').innerHTML = `<div class="empty">Ошибка: ${e.message}</div>`;
+  }
+}
+
+function renderList() {
+  const el = document.getElementById('ticketList');
+  const countEl = document.getElementById('ticketCount');
+  const onlyMine = document.getElementById('myFilter').checked;
+
+  if (!tickets.length) {
+    el.innerHTML = '<div class="empty">Нет тикетов</div>';
+    countEl.textContent = '';
+    return;
+  }
+
+  const myCount = currentUser ? tickets.filter(t => t.assignee_id === currentUser.id).length : 0;
+  countEl.textContent = `Всего: ${tickets.length}` + (myCount ? ` · На мне: ${myCount}` : '');
+
+  const filtered = onlyMine && currentUser ? tickets.filter(t => t.assignee_id === currentUser.id) : tickets;
+
+  if (!filtered.length) {
+    el.innerHTML = '<div class="empty">Нет тикетов на мне</div>';
+    return;
+  }
+
+  el.innerHTML = filtered.map(t => {
+    const isMine = currentUser && t.assignee_id === currentUser.id;
+    return `
+    <div class="ticket-card status-${t.status} ${isMine ? 'mine' : ''} ${t.id === currentTicketId ? 'active' : ''}"
+         onclick="loadDetail('${t.id}')">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
+        <span class="ticket-title">${t.title || 'Без заголовка'}</span>
+        <span>
+          <span class="badge badge-${t.status}">${STATUS_LABELS[t.status] || t.status}</span>
+          ${isMine ? '<span class="badge badge-mine">мой</span>' : ''}
+          ${!t.assignee_id ? '<span class="badge" style="background:#E8F5E9;color:#2E7D32">свободный</span>' : ''}
+        </span>
+      </div>
+      <div class="ticket-meta">
+        <span>${t.sender_email || '—'}</span>
+        <span>${t.source || ''}</span>
+        ${t.assignee_name ? `<span>→ ${t.assignee_name}</span>` : ''}
+      </div>
+      ${t.ai_summary ? `<div style="font-size:0.8em;color:#888;margin-top:4px">${t.ai_summary}</div>` : ''}
+    </div>`;
+  }).join('');
+}
+
+async function loadDetail(id) {
+  currentTicketId = id;
+  renderList();
+  const el = document.getElementById('ticketDetail');
+  el.innerHTML = '<div class="loading">Загрузка...</div>';
+
+  try {
+    const res = await fetch(`${api()}/auto-announce/tickets/${id}`);
+    const t = await res.json();
+    renderDetail(t);
+  } catch (e) {
+    el.innerHTML = `<div class="empty">Ошибка: ${e.message}</div>`;
+  }
+}
+
+function renderDetail(t) {
+  const closed = t.status === 'APPROVED' || t.status === 'REJECTED';
+  const isMine = currentUser && t.assignee_id === currentUser.id;
+  const isFree = !t.assignee_id;
+  const canAct = isMine || isFree;
+  const el = document.getElementById('ticketDetail');
+
+  let actionsHtml = '';
+  if (!closed) {
+    if (isFree) {
+      actionsHtml = `
+        <button class="btn-take" onclick="doTake()">Взять себе</button>
+        <button class="btn-assign" onclick="openModal('assignModal')">Назначить</button>`;
+    } else if (isMine) {
+      actionsHtml = `
+        <button class="btn-edit" onclick="openEdit()">Редактировать</button>
+        <button class="btn-assign" onclick="openModal('assignModal')">Назначить</button>
+        <button class="btn-revision" onclick="openModal('revisionModal')">На доработку</button>
+        <button class="btn-approve" onclick="doApprove()">Одобрить</button>
+        <button class="btn-reject" onclick="openModal('rejectModal')">Отклонить</button>`;
+    }
+  }
+
+  el.innerHTML = `
+    <div class="detail-header">
+      <div>
+        <div class="detail-title">${t.title || 'Без заголовка'}</div>
+        <div style="margin-top:4px">
+          <span class="badge badge-${t.status}">${STATUS_LABELS[t.status]}</span>
+          ${t.assignee_name ? `<span style="font-size:0.85em;color:#666;margin-left:8px">→ ${t.assignee_name}</span>` : ''}
+          ${isMine ? '<span class="badge badge-mine">мой тикет</span>' : ''}
+          ${isFree && !closed ? '<span class="badge" style="background:#E8F5E9;color:#2E7D32">свободный</span>' : ''}
+          ${!canAct && !closed && !isFree ? '<span style="font-size:0.8em;color:#E53935;margin-left:8px">назначен на другого</span>' : ''}
+          <span style="font-size:0.8em;color:#999;margin-left:8px">${t.sender_email || ''} · ${t.source || ''}</span>
+        </div>
+      </div>
+      ${actionsHtml ? `<div class="detail-actions">${actionsHtml}</div>` : ''}
+    </div>
+
+    ${t.ai_summary ? `
+    <div class="section">
+      <div class="section-label">AI Summary</div>
+      <div class="section-content">${t.ai_summary}</div>
+    </div>` : ''}
+
+    <div class="section">
+      <div class="section-label">Текст анонса</div>
+      <div class="section-content html-content">${t.body || '<em>пусто</em>'}</div>
+    </div>
+
+    ${t.script_ru ? `
+    <div class="section">
+      <div class="section-label">Скрипт (RU)</div>
+      <div class="section-content">${t.script_ru}</div>
+    </div>` : ''}
+
+    ${t.script_kz ? `
+    <div class="section">
+      <div class="section-label">Скрипт (KZ)</div>
+      <div class="section-content">${t.script_kz}</div>
+    </div>` : ''}
+
+    ${t.original_html_key ? `
+    <div class="section">
+      <div class="section-label">Оригинал письма</div>
+      <div class="section-content">
+        <a href="${api()}/auto-announce/emails/${t.email_id}/original" target="_blank">Открыть оригинальный HTML</a>
+      </div>
+    </div>` : ''}
+
+    <div class="section">
+      <div class="section-label">История</div>
+      <div>
+        ${(t.history || []).map(h => `
+          <div class="history-item">
+            <div class="history-dot ${h.action}"></div>
+            <div>
+              <div class="history-text">
+                <span class="history-actor">${h.actor_name || 'system'}</span> — ${ACTION_LABELS[h.action] || h.action}
+              </div>
+              ${h.comment ? `<div class="history-comment">${h.comment}</div>` : ''}
+              <div class="history-time">${h.created_at || ''}</div>
+            </div>
+          </div>
+        `).join('')}
+      </div>
+    </div>
+  `;
+}
+
+// Actions
+async function doTake() {
+  await postAction('take');
+}
+
+async function doApprove() {
+  if (!confirm('Опубликовать анонс?')) return;
+  await postAction('approve');
+}
+
+async function doAssign() {
+  const id = document.getElementById('assignId').value;
+  const name = document.getElementById('assignName').value;
+  if (!id || !name) { alert('Выберите тренера'); return; }
+  await postAction('assign', { assignee_id: id, assignee_name: name });
+  closeModal('assignModal');
+}
+
+async function doRevision() {
+  const id = document.getElementById('revisionId').value;
+  const name = document.getElementById('revisionName').value;
+  const comment = document.getElementById('revisionComment').value;
+  if (!id || !name) { alert('Выберите тренера'); return; }
+  if (!comment) { alert('Напишите комментарий'); return; }
+  await postAction('revision', { assignee_id: id, assignee_name: name, comment: comment });
+  closeModal('revisionModal');
+}
+
+async function doEdit() {
+  await postAction('edit', {
+    title: document.getElementById('editTitle').value,
+    body: getEditBody(),
+    script_ru: document.getElementById('editScriptRu').value,
+    script_kz: document.getElementById('editScriptKz').value,
+  });
+  closeModal('editModal');
+}
+
+async function doReject() {
+  await postAction('reject', {
+    comment: document.getElementById('rejectComment').value || null,
+  });
+  closeModal('rejectModal');
+}
+
+async function postAction(action, body = {}) {
+  if (!currentUser) { alert('Выберите пользователя'); return; }
+  try {
+    const res = await fetch(`${api()}/auto-announce/tickets/${currentTicketId}/${action}`, {
+      method: 'POST',
+      headers: headers(),
+      body: JSON.stringify(body),
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      alert(`Ошибка: ${data.detail || JSON.stringify(data)}`);
+      return;
+    }
+    loadDetail(currentTicketId);
+    loadTickets();
+  } catch (e) {
+    alert(`Ошибка: ${e.message}`);
+  }
+}
+
+let editorMode = 'visual';
+
+function switchEditorMode(mode) {
+  const visual = document.getElementById('editBodyVisual');
+  const html = document.getElementById('editBodyHtml');
+  const btns = document.querySelectorAll('.editor-toggle button');
+
+  if (mode === 'html') {
+    html.value = visual.innerHTML;
+    visual.style.display = 'none';
+    html.style.display = 'block';
+    btns[0].classList.remove('active');
+    btns[1].classList.add('active');
+  } else {
+    visual.innerHTML = html.value;
+    html.style.display = 'none';
+    visual.style.display = 'block';
+    btns[1].classList.remove('active');
+    btns[0].classList.add('active');
+  }
+  editorMode = mode;
+}
+
+function getEditBody() {
+  if (editorMode === 'html') return document.getElementById('editBodyHtml').value;
+  return document.getElementById('editBodyVisual').innerHTML;
+}
+
+function openEdit() {
+  fetch(`${api()}/auto-announce/tickets/${currentTicketId}`)
+    .then(r => r.json())
+    .then(t => {
+      document.getElementById('editTitle').value = t.title || '';
+      document.getElementById('editBodyVisual').innerHTML = t.body || '';
+      document.getElementById('editBodyHtml').value = t.body || '';
+      document.getElementById('editScriptRu').value = t.script_ru || '';
+      document.getElementById('editScriptKz').value = t.script_kz || '';
+      editorMode = 'visual';
+      document.getElementById('editBodyVisual').style.display = 'block';
+      document.getElementById('editBodyHtml').style.display = 'none';
+      document.querySelectorAll('.editor-toggle button')[0].classList.add('active');
+      document.querySelectorAll('.editor-toggle button')[1].classList.remove('active');
+      openModal('editModal');
+    });
+}
+
+function openModal(id) {
+  if (!currentUser) { alert('Выберите пользователя'); return; }
+  if (id === 'assignModal') {
+    buildTrainerOptions('assignSelect');
+    document.getElementById('assignCustom').style.display = 'none';
+    document.getElementById('assignId').value = '';
+    document.getElementById('assignName').value = '';
+  }
+  if (id === 'revisionModal') {
+    buildTrainerOptions('revisionSelect');
+    document.getElementById('revisionCustom').style.display = 'none';
+    document.getElementById('revisionId').value = '';
+    document.getElementById('revisionName').value = '';
+    document.getElementById('revisionComment').value = '';
+  }
+  document.getElementById(id).classList.add('show');
+}
+function closeModal(id) { document.getElementById(id).classList.remove('show'); }
+
+// Close modals on overlay click
+document.querySelectorAll('.modal-overlay').forEach(el => {
+  el.addEventListener('click', e => { if (e.target === el) el.classList.remove('show'); });
+});
+
+// Init
+window.addEventListener('DOMContentLoaded', () => {
+  switchUser(0); // Айжан по умолчанию
+});
+</script>
+</body>
+</html>

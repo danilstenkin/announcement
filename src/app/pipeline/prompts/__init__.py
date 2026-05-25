@@ -10,7 +10,10 @@ import re
 _SYSTEM_PROMT = [
     ("ForteSpace BPM", PROMPT_BPM),
     ("compass", PROMPT_COMPASS),
+    ("компас", PROMPT_COMPASS),
     ("Мобильный Интернет Банкинг Физических лиц 3.0", PROMPT_MIB),
+    ("Мобильный Интернет Банкинг", PROMPT_MIB),
+    ("МИБ", PROMPT_MIB),
     ("абис", PROMPT_COLVIR),
 
 ]
@@ -20,8 +23,14 @@ def extract_system(text: str) -> str | None:
     system = match.group(1).strip() if match else None
     return system
 
+_SERVICE_DESK_SENDERS = {
+    "sd_info@Fortebank.com",
+    "AAAskarova@Fortebank.com",
+    "DAStenkin@Fortebank.com",
+}
+
 def select_prompt(email_body: str, email_from: str) -> tuple[str, str]:
-    if email_from == "sd_info@Fortebank.com":  # Service Desk
+    if email_from in _SERVICE_DESK_SENDERS:
         system = extract_system(email_body)
         if system:
             system_lower = system.lower()

@@ -1,0 +1,17 @@
+services:
+  api:
+    image: announcement-api:latest
+    env_file: .env
+    environment:
+      - HTTP_PROXY=http://headproxy03.fortebank.com:8080
+      - HTTPS_PROXY=http://headproxy03.fortebank.com:8080
+      - http_proxy=http://headproxy03.fortebank.com:8080
+      - https_proxy=http://headproxy03.fortebank.com:8080
+      - NO_PROXY=dl-ai-dev-nlp01-uv01.fortebank.com,dl-ai-dev-app01-uv01.fortebank.com,minio,localhost,10.0.99.60,exsrv.fortebank.com
+      - no_proxy=dl-ai-dev-nlp01-uv01.fortebank.com,dl-ai-dev-app01-uv01.fortebank.com,minio,localhost,10.0.99.60,exsrv.fortebank.com
+      - MINIO_ENDPOINT=host.docker.internal:9002
+    ports:
+      - "8050:8004"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    restart: unless-stopped

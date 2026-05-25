@@ -30,7 +30,7 @@ class Announcement(Base):
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, index=True)
     title = Column(String(255), nullable=False)
-    category = Column(SQLEnum(AnnouncementCategoryEnum), nullable=False)
+    category = Column(SQLEnum(AnnouncementCategoryEnum, schema="cchub_announcements"), nullable=False)
     product = Column(String(255), nullable=True)
     text = Column(Text, nullable=False)
     instruction = Column(Text, nullable=True)
