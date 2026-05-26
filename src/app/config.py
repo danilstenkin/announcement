@@ -29,6 +29,7 @@ class Settings(BaseSettings):
     # App
     APP_ENV: Literal["development", "staging", "production"] = "development"
     DEBUG: bool = False
+    FORCE_REVIEW_TICKETS: bool = False
 
     # LLM
     GPT_URL: str

@@ -103,6 +103,36 @@ class NotificationsService:
             f"ID={announcement.id}, Title='{announcement.title}'"
         )
 
+    async def publish_ticket_event(
+        self,
+        event_type: str,
+        ticket_id: str,
+        actor_name: str | None = None,
+        assignee_id: str | None = None,
+        assignee_name: str | None = None,
+        title: str | None = None,
+        comment: str | None = None,
+        status: str | None = None,
+    ) -> None:
+        payload = {
+            "event_type": event_type,
+            "ticket_id": ticket_id,
+            "actor_name": actor_name,
+            "assignee_id": assignee_id,
+            "assignee_name": assignee_name,
+            "title": title,
+            "comment": comment,
+            "status": status,
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        }
+        try:
+            async with httpx.AsyncClient(timeout=10.0, verify=False) as client:
+                response = await client.post(self.webhook_url, json=payload)
+                response.raise_for_status()
+            logger.info("Ticket event sent: {et} ticket={tid}", et=event_type, tid=ticket_id)
+        except Exception as e:
+            logger.error("Failed to send ticket event {et}: {err}", et=event_type, err=e)
+
     async def _send_event(self, notification: NotificationEvent) -> None:
         payload = {
             "event_type": notification.event_type,

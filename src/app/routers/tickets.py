@@ -1,8 +1,7 @@
 from typing import Optional
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Header, Request
-from fastapi.responses import StreamingResponse
+from fastapi import APIRouter, Depends, HTTPException, Header
 from pydantic import BaseModel, ConfigDict
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -15,7 +14,6 @@ from models.review_ticket import (
 from models.incoming_emails import IncomingEmail, EmailStatusEnum
 from models.announcement import Announcement, AnnouncementCategoryEnum
 from services.notifications import NotificationsService
-from services.ticket_events import ticket_events
 from config import settings
 
 from urllib.parse import unquote
@@ -122,31 +120,15 @@ def _build_history(history_items) -> list[HistoryOut]:
     ]
 
 
-# ── SSE Stream ─────────────────────────────────────────
-
-@router.get("/stream")
-async def ticket_stream(request: Request):
-    q = ticket_events.subscribe()
-
-    async def event_generator():
-        try:
-            yield "data: {\"event_type\": \"connected\"}\n\n"
-            async for chunk in ticket_events.stream(q):
-                if await request.is_disconnected():
-                    break
-                yield chunk
-        finally:
-            ticket_events.unsubscribe(q)
-
-    return StreamingResponse(
-        event_generator(),
-        media_type="text/event-stream",
-        headers={
-            "Cache-Control": "no-cache",
-            "Connection": "keep-alive",
-            "X-Accel-Buffering": "no",
-        },
-    )
+async def _notify_ticket(event_type: str, ticket_id: str, **kwargs):
+    """Send ticket event to webhook → Redis pub/sub → SSE."""
+    try:
+        notifications = NotificationsService(settings.EVENTS_WEBHOOK_URL)
+        await notifications.publish_ticket_event(
+            event_type=event_type, ticket_id=ticket_id, **kwargs,
+        )
+    except Exception as e:
+        logger.error("Failed to send ticket event: {err}", err=e)
 
 
 # ── List & Detail ───────────────────────────────────────
@@ -259,7 +241,7 @@ async def assign_ticket(
         comment=f"Назначено на {req.assignee_name}",
     ))
     await session.commit()
-    await ticket_events.publish(
+    await _notify_ticket(
         event_type="ASSIGNED", ticket_id=str(ticket.id),
         actor_name=user["name"], assignee_id=str(req.assignee_id),
         assignee_name=req.assignee_name, title=ticket.title, status="IN_REVIEW",
@@ -288,7 +270,7 @@ async def take_ticket(
         actor_name=user["name"],
     ))
     await session.commit()
-    await ticket_events.publish(
+    await _notify_ticket(
         event_type="TAKEN", ticket_id=str(ticket.id),
         actor_name=user["name"], assignee_id=user["id"],
         assignee_name=user["name"], title=ticket.title, status="IN_REVIEW",
@@ -319,7 +301,7 @@ async def send_to_revision(
         comment=req.comment,
     ))
     await session.commit()
-    await ticket_events.publish(
+    await _notify_ticket(
         event_type="SENT_TO_REVISION", ticket_id=str(ticket.id),
         actor_name=user["name"], assignee_id=str(req.assignee_id),
         assignee_name=req.assignee_name, title=ticket.title,
@@ -364,7 +346,7 @@ async def edit_ticket(
 
     await session.commit()
     if changes:
-        await ticket_events.publish(
+        await _notify_ticket(
             event_type="EDITED", ticket_id=str(ticket.id),
             actor_name=user["name"], title=ticket.title, status=ticket.status.value,
         )
@@ -420,7 +402,7 @@ async def approve_ticket(
 
     await session.commit()
 
-    await ticket_events.publish(
+    await _notify_ticket(
         event_type="APPROVED", ticket_id=str(ticket.id),
         actor_name=user["name"], title=ticket.title, status="APPROVED",
     )
@@ -462,7 +444,7 @@ async def reject_ticket(
     ))
 
     await session.commit()
-    await ticket_events.publish(
+    await _notify_ticket(
         event_type="REJECTED", ticket_id=str(ticket.id),
         actor_name=user["name"], title=ticket.title, status="REJECTED",
     )

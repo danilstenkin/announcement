@@ -1,5 +1,6 @@
 from sqlalchemy import update
 
+from config import settings
 from pipeline.context import PipelineContext
 from models.incoming_emails import EmailStatusEnum, IncomingEmail
 from models.review_ticket import ReviewTicket, ReviewHistory, TicketStatusEnum, ReviewActionEnum
@@ -10,10 +11,14 @@ from pipeline.steps.save_email import save_email #1
 from pipeline.steps.ai_analysis import analyze #2
 from pipeline.steps.publish import publish
 
-from services.ticket_events import ticket_events
+from services.notifications import NotificationsService
 from logger import get_logger
 
 logger = get_logger(__name__)
+
+
+def should_create_review_ticket(ctx: PipelineContext) -> bool:
+    return settings.FORCE_REVIEW_TICKETS or ctx.status == EmailStatusEnum.RED
 
 
 async def run_pipeline(ctx: PipelineContext):
@@ -28,8 +33,14 @@ async def run_pipeline(ctx: PipelineContext):
             return ctx
         try:
             await analyze(ctx, session)
-            if ctx.status == EmailStatusEnum.RED:
-                logger.info("Default prompt → status RED, creating review ticket for email={eid}", eid=ctx.email_db_id)
+            if should_create_review_ticket(ctx):
+                if settings.FORCE_REVIEW_TICKETS and ctx.status != EmailStatusEnum.RED:
+                    logger.info(
+                        "FORCE_REVIEW_TICKETS enabled, creating review ticket for email={eid}",
+                        eid=ctx.email_db_id,
+                    )
+                else:
+                    logger.info("Default prompt → status RED, creating review ticket for email={eid}", eid=ctx.email_db_id)
                 await session.execute(
                     update(IncomingEmail).where(IncomingEmail.id == ctx.email_db_id).values(status=EmailStatusEnum.RED)
                 )
@@ -54,10 +65,14 @@ async def run_pipeline(ctx: PipelineContext):
                 )
                 session.add(history)
                 logger.info("Created review ticket {tid} for email {eid}", tid=ticket.id, eid=ctx.email_db_id)
-                await ticket_events.publish(
-                    event_type="CREATED", ticket_id=str(ticket.id),
-                    actor_name="system", title=ctx.ai_title, status="PENDING_REVIEW",
-                )
+                try:
+                    notifications = NotificationsService(settings.EVENTS_WEBHOOK_URL)
+                    await notifications.publish_ticket_event(
+                        event_type="CREATED", ticket_id=str(ticket.id),
+                        actor_name="system", title=ctx.ai_title, status="PENDING_REVIEW",
+                    )
+                except Exception as e:
+                    logger.error("Failed to send ticket CREATED event: {err}", err=e)
             else:
                 await publish(ctx, session)
             await session.commit()
