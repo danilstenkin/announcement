@@ -25,10 +25,16 @@ async def run_pipeline(ctx: PipelineContext):
     async with async_session() as session:
         try:
             await save_email(ctx, session)
-            if ctx.is_duplicate or ctx.email_db_id is None:
+            if ctx.is_duplicate:
+                logger.info("Duplicate email, skipping pipeline for uid={uid}", uid=ctx.uid)
+                return ctx
+            if ctx.email_db_id is None:
+                logger.warning("save_email returned no email_db_id for uid={uid}", uid=ctx.uid)
                 return ctx
             await session.commit()
+            logger.info("Email saved, email_db_id={eid} uid={uid}", eid=ctx.email_db_id, uid=ctx.uid)
         except Exception:
+            logger.exception("save_email failed for uid={uid}", uid=ctx.uid)
             await session.rollback()
             return ctx
         try:
