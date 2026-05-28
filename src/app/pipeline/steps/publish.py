@@ -55,7 +55,7 @@ async def publish(ctx: PipelineContext, session: AsyncSession):
     ctx.ai_emails_db_id = announcment.id
     ctx.auto_publish = True
 
-    # await _transfer_attachments(ctx,session, announcment.id)
+    await _transfer_attachments(ctx, session, announcment.id)
     if ctx.email_db_id:
         await session.execute(
             update(IncomingEmail).where(IncomingEmail.id == ctx.email_db_id).values(status=EmailStatusEnum.DONE)

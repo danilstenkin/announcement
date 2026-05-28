@@ -88,11 +88,12 @@ class MinIOClient:
             raise
 
     def get_file_url(self, object_key: str, expiry_seconds: int = 3600) -> str:
+        from datetime import timedelta
         try:
-            url = self.client.get_presigned_download_link(
+            url = self.client.presigned_get_object(
                 bucket_name=self.bucket_name,
                 object_name=object_key,
-                expires=expiry_seconds,
+                expires=timedelta(seconds=expiry_seconds),
             )
             return url
         except S3Error as e:

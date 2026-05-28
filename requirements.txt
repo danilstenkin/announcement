@@ -17,3 +17,6 @@ aioimaplib
 packaging
 openai
 python-pptx
+pymupdf
+python-docx
+openpyxl

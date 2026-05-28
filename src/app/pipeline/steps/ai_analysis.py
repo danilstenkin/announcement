@@ -12,6 +12,21 @@ from pipeline.prompts import extract_system, select_prompt
 logger = get_logger(__name__)
 
 
+def _normalize_block_spacing(html: str) -> str:
+    """Ensure consistent spacing between top-level div blocks."""
+    if not html:
+        return html
+    # Remove any whitespace/br between closing </div> and opening <div
+    html = re.sub(r'</div>\s*(?:<br\s*/?>|\s)*\s*<div', '</div>\n<div', html)
+    # Set uniform margin on all top-level div blocks
+    html = re.sub(
+        r'<div\s+style="[^"]*margin:[^"]*"',
+        lambda m: re.sub(r'margin:\s*[^;"]+', 'margin: 4px 0 0 0', m.group(0)),
+        html,
+    )
+    return html
+
+
 def _clean_script(value: str | None) -> str | None:
     if not value:
         return value
@@ -55,7 +70,7 @@ async def analyze(ctx: PipelineContext, session: AsyncSession) -> None:
             )
 
         ctx.ai_title = result.get("title", "")
-        ctx.ai_email = result.get("ai_email", "")
+        ctx.ai_email = _normalize_block_spacing(result.get("ai_email", ""))
         ctx.script_ru = _clean_script(result.get("script_ru"))
         ctx.script_kz = _clean_script(result.get("script_kz"))
 

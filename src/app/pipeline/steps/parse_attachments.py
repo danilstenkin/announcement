@@ -1,5 +1,5 @@
 """
-Извлечение текста из вложений (pptx) для передачи в GPT-анализ.
+Извлечение текста из вложений (pptx, pdf, docx, xlsx) для передачи в GPT-анализ.
 """
 
 from __future__ import annotations
@@ -40,9 +40,64 @@ def _parse_pptx(data: bytes) -> str:
     return "\n\n".join(texts)
 
 
+def _parse_pdf(data: bytes) -> str:
+    """Извлекает текст из PDF."""
+    import fitz  # pymupdf
+
+    doc = fitz.open(stream=data, filetype="pdf")
+    texts: list[str] = []
+    for page_num, page in enumerate(doc, start=1):
+        text = page.get_text().strip()
+        if text:
+            texts.append(f"[Страница {page_num}]\n{text}")
+    doc.close()
+    return "\n\n".join(texts)
+
+
+def _parse_docx(data: bytes) -> str:
+    """Извлекает текст из Word-документа."""
+    from docx import Document
+
+    doc = Document(io.BytesIO(data))
+    texts: list[str] = []
+    for para in doc.paragraphs:
+        text = para.text.strip()
+        if text:
+            texts.append(text)
+    for table in doc.tables:
+        for row in table.rows:
+            row_text = " | ".join(
+                cell.text.strip() for cell in row.cells if cell.text.strip()
+            )
+            if row_text:
+                texts.append(row_text)
+    return "\n".join(texts)
+
+
+def _parse_xlsx(data: bytes) -> str:
+    """Извлекает текст из Excel-файла."""
+    from openpyxl import load_workbook
+
+    wb = load_workbook(io.BytesIO(data), read_only=True, data_only=True)
+    texts: list[str] = []
+    for sheet in wb.worksheets:
+        sheet_lines: list[str] = []
+        for row in sheet.iter_rows(values_only=True):
+            cells = [str(c).strip() for c in row if c is not None and str(c).strip()]
+            if cells:
+                sheet_lines.append(" | ".join(cells))
+        if sheet_lines:
+            texts.append(f"[Лист: {sheet.title}]\n" + "\n".join(sheet_lines))
+    wb.close()
+    return "\n\n".join(texts)
+
+
 # Маппинг расширение → парсер
 _PARSERS: dict[str, callable] = {
     ".pptx": _parse_pptx,
+    ".pdf": _parse_pdf,
+    ".docx": _parse_docx,
+    ".xlsx": _parse_xlsx,
 }
 
 

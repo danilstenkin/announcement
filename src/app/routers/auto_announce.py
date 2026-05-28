@@ -10,6 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from dependencies import get_db
 from dependencies.minio import get_minio_client
 from models.ai_analysis import AIEmail
+from models.attachments import Attachments
 from models.email_attachment import EmailAttachment
 from models.incoming_emails import EmailStatusEnum, IncomingEmail
 
@@ -88,6 +89,31 @@ async def get_original_email(email_id: UUID, session: AsyncSession = Depends(get
     response.release_conn()
 
     return HTMLResponse(content=html_content)
+
+
+@router.get("/attachments/{attachment_id}/download")
+async def download_attachment(
+    attachment_id: UUID,
+    session: AsyncSession = Depends(get_db),
+):
+    """Возвращает presigned URL для скачивания вложения (email или announcement)."""
+    result = await session.execute(
+        select(EmailAttachment).where(EmailAttachment.id == attachment_id)
+    )
+    att = result.scalar_one_or_none()
+
+    if not att:
+        result = await session.execute(
+            select(Attachments).where(Attachments.id == attachment_id)
+        )
+        att = result.scalar_one_or_none()
+
+    if not att:
+        raise HTTPException(status_code=404, detail="Attachment not found")
+
+    minio = get_minio_client()
+    url = minio.get_file_url(att.object_key)
+    return {"url": url, "filename": att.filename, "content_type": att.content_type}
 
 
 @router.get("/emails", response_model=list[IncomingEmailOut])

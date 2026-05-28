@@ -7,14 +7,20 @@ from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from dependencies import get_db
+from dependencies.minio import get_minio_client
 from models.review_ticket import (
     ReviewTicket, ReviewHistory,
     TicketStatusEnum, ReviewActionEnum,
 )
 from models.incoming_emails import IncomingEmail, EmailStatusEnum
 from models.announcement import Announcement, AnnouncementCategoryEnum
+from models.email_attachment import EmailAttachment
+from models.attachments import Attachments
 from services.notifications import NotificationsService
 from config import settings
+
+import os
+from datetime import datetime, timezone
 
 from urllib.parse import unquote
 from logger import get_logger
@@ -58,11 +64,21 @@ class TicketListOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
+class AttachmentOut(BaseModel):
+    id: UUID
+    filename: str
+    object_key: str
+    content_type: Optional[str] = None
+
+    model_config = ConfigDict(from_attributes=True)
+
+
 class TicketDetailOut(TicketListOut):
     body: Optional[str] = None
     script_ru: Optional[str] = None
     script_kz: Optional[str] = None
     original_html_key: Optional[str] = None
+    attachments: list[AttachmentOut] = []
 
 
 class AssignRequest(BaseModel):
@@ -196,6 +212,11 @@ async def get_ticket(
     )
     email = email_result.scalar_one_or_none()
 
+    att_result = await session.execute(
+        select(EmailAttachment).where(EmailAttachment.email_id == ticket.email_id)
+    )
+    atts = [AttachmentOut.model_validate(a) for a in att_result.scalars().all()]
+
     return TicketDetailOut(
         id=ticket.id,
         email_id=ticket.email_id,
@@ -213,6 +234,7 @@ async def get_ticket(
         created_at=ticket.created_at.isoformat() if ticket.created_at else None,
         updated_at=ticket.updated_at.isoformat() if ticket.updated_at else None,
         history=_build_history(ticket.history),
+        attachments=atts,
     )
 
 
@@ -383,6 +405,28 @@ async def approve_ticket(
     )
     session.add(announcement)
     await session.flush()
+
+    # Transfer attachments from email to announcement
+    att_result = await session.execute(
+        select(EmailAttachment).where(EmailAttachment.email_id == ticket.email_id)
+    )
+    email_atts = att_result.scalars().all()
+    if email_atts:
+        minio = get_minio_client()
+        for ea in email_atts:
+            try:
+                ts = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
+                new_key = f"announcements/{announcement.id}/{ts}_{os.path.basename(ea.filename)}"
+                await minio.copy_file(ea.object_key, new_key)
+                session.add(Attachments(
+                    announcement_id=announcement.id,
+                    filename=ea.filename,
+                    object_key=new_key,
+                    file_size=ea.file_size,
+                    content_type=ea.content_type,
+                ))
+            except Exception as err:
+                logger.error("Failed to transfer attachment {f}: {err}", f=ea.filename, err=err)
 
     ticket.status = TicketStatusEnum.APPROVED
 
