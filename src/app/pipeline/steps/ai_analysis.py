@@ -74,6 +74,11 @@ async def analyze(ctx: PipelineContext, session: AsyncSession) -> None:
         ctx.script_ru = _clean_script(result.get("script_ru"))
         ctx.script_kz = _clean_script(result.get("script_kz"))
 
+        from pipeline.recommend_date import parse_recommended_date
+        ctx.recommended_publish_at = parse_recommended_date(
+            result.get("recommended_publish_date"), ctx.received_at
+        )
+
         if prompt_type in ("default", "service_desk_default"):
             ctx.ai_summary = result.get("ai_summary")
             ctx.status = EmailStatusEnum.RED
@@ -90,6 +95,7 @@ async def analyze(ctx: PipelineContext, session: AsyncSession) -> None:
         script_kz=ctx.script_kz,
         ai_title=ctx.ai_title,
         ai_summary=ctx.ai_summary,
+        recommended_publish_date=ctx.recommended_publish_at,
     )
 
     session.add(analysis)

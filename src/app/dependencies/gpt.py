@@ -98,9 +98,13 @@ class GPTClient:
                 "type": ["string", "null"],
                 "description": "Скрипт оператора на казахском или null",
             },
+            "recommended_publish_date": {
+                "type": ["string", "null"],
+                "description": "Рекомендуемая дата публикации в формате YYYY-MM-DD из текста (например из 'Начало работ'), или null",
+            },
         }
 
-        required = ["title", "ai_email", "script_ru", "script_kz"]
+        required = ["title", "ai_email", "script_ru", "script_kz", "recommended_publish_date"]
 
         if include_summary:
             properties["ai_summary"] = {

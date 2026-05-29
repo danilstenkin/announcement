@@ -59,6 +59,7 @@ async def run_pipeline(ctx: PipelineContext):
                     script_kz=ctx.script_kz,
                     ai_summary=ctx.ai_summary,
                     source=ctx.source,
+                    recommended_publish_at=ctx.recommended_publish_at,
                 )
                 session.add(ticket)
                 await session.flush()

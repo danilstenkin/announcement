@@ -36,6 +36,7 @@ class PipelineContext:
     script_ru: str | None = None
     script_kz: str | None = None
     ai_summary: str | None = None
+    recommended_publish_at: datetime | None = None
 
 
     # ── Шаг 3: route ────────────────────────────────────
