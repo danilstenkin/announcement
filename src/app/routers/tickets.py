@@ -17,6 +17,7 @@ from models.publication import (
     AnnouncementPublication, PublicationKindEnum, PublicationStatusEnum,
 )
 from services.announcement_factory import create_announcement_from_ticket
+from services.ticket_status import compute_display_status
 from services.publication import execute_publication
 from services.notifications import NotificationsService
 from models.announcement import get_astana_time
@@ -61,6 +62,7 @@ class TicketListOut(BaseModel):
     ai_summary: Optional[str] = None
     created_at: Optional[str] = None
     updated_at: Optional[str] = None
+    display_status: Optional[str] = None
     history: list[HistoryOut] = []
 
     model_config = ConfigDict(from_attributes=True)
@@ -185,6 +187,16 @@ async def list_tickets(
     else:
         email_map = {}
 
+    ann_ids = [t.announcement_id for t in tickets if t.announcement_id]
+    pub_status_map: dict = {}
+    if ann_ids:
+        pubs = (await session.execute(
+            select(AnnouncementPublication.announcement_id, AnnouncementPublication.status)
+            .where(AnnouncementPublication.announcement_id.in_(ann_ids))
+        )).all()
+        for ann_id, st in pubs:
+            pub_status_map.setdefault(ann_id, []).append(st.value if hasattr(st, "value") else str(st))
+
     response = []
     for t in tickets:
         email = email_map.get(t.email_id)
@@ -200,6 +212,10 @@ async def list_tickets(
             ai_summary=t.ai_summary,
             created_at=t.created_at.isoformat() if t.created_at else None,
             updated_at=t.updated_at.isoformat() if t.updated_at else None,
+            display_status=compute_display_status(
+                t.status.value, t.publish_confirmed,
+                pub_status_map.get(t.announcement_id, []) if t.announcement_id else [],
+            ),
             history=_build_history(t.history),
         ))
 
@@ -223,6 +239,14 @@ async def get_ticket(
     )
     atts = [AttachmentOut.model_validate(a) for a in att_result.scalars().all()]
 
+    pub_statuses = []
+    if ticket.announcement_id:
+        rows = (await session.execute(
+            select(AnnouncementPublication.status)
+            .where(AnnouncementPublication.announcement_id == ticket.announcement_id)
+        )).scalars().all()
+        pub_statuses = [s.value if hasattr(s, "value") else str(s) for s in rows]
+
     return TicketDetailOut(
         id=ticket.id,
         email_id=ticket.email_id,
@@ -239,6 +263,9 @@ async def get_ticket(
         original_html_key=email.original_html_key if email else None,
         created_at=ticket.created_at.isoformat() if ticket.created_at else None,
         updated_at=ticket.updated_at.isoformat() if ticket.updated_at else None,
+        display_status=compute_display_status(
+            ticket.status.value, ticket.publish_confirmed, pub_statuses,
+        ),
         history=_build_history(ticket.history),
         attachments=atts,
     )
