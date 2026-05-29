@@ -43,6 +43,26 @@ class NotificationsService:
             f"ID={announcement.id}, Title='{announcement.title}'"
         )
 
+    async def publish_repeat_announcement(self, announcement: Announcement) -> None:
+        notification = NotificationEvent(
+            event_type="REPEAT_ANNOUNCEMENT",
+            title=announcement.title,
+            message=f"Напоминание: «{announcement.title}»",
+            category=announcement.category,
+            announcement_id=announcement.id,
+            topic=announcement.topic,
+            product=announcement.product,
+            text=announcement.text,
+            is_ai=getattr(announcement, 'is_ai', False) or False,
+            source=getattr(announcement, 'source', None),
+            timestamp=datetime.now(timezone.utc),
+        )
+        await self._send_event(notification)
+        logger.info(
+            f"Repeat announcement notification sent: "
+            f"ID={announcement.id}, Title='{announcement.title}'"
+        )
+
     async def publish_updated_announcement(self, announcement: Announcement) -> None:
         notification = NotificationEvent(
             event_type="UPDATED_ANNOUNCEMENT",
