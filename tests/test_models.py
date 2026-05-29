@@ -1,7 +1,6 @@
 import uuid
 from datetime import timedelta
 
-import pytz
 from models.announcement import Announcement, AnnouncementCategoryEnum, get_astana_time
 from models.publication import (
     AnnouncementPublication, PublicationKindEnum, PublicationStatusEnum,

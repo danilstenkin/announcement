@@ -32,10 +32,6 @@ logger = get_logger(__name__)
 
 router = APIRouter(prefix="/auto-announce/tickets", tags=["review-tickets"])
 
-SYSTEM_USER_ID = UUID("00000000-0000-0000-0000-000000000000")
-SYSTEM_USER_NAME = "AiAnons"
-SYSTEM_USER_EMAIL = "aiNews@fortebanks.com"
-
 
 # ── Schemas ─────────────────────────────────────────────
 

@@ -48,7 +48,7 @@ async def lifespan(app: FastAPI):
         await watcher_task
     except asyncio.CancelledError:
         pass
-    logger.info("Email watcher stoped")
+    logger.info("Email watcher stopped")
 
     publish_task.cancel()
     try:
