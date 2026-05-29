@@ -18,6 +18,7 @@ from dependencies.database import engine
 from dependencies.minio import init_minio
 from dependencies.gpt import GPTConfig, GPTClient
 from workers.outlook_worker import run_email_watcher
+from workers.publish_worker import run_publish_scheduler
 from logger import get_logger
 
 logger = get_logger(__name__)
@@ -30,6 +31,9 @@ async def lifespan(app: FastAPI):
 
     watcher_task = asyncio.create_task(run_email_watcher())
     logger.info("Email watcher started")
+
+    publish_task = asyncio.create_task(run_publish_scheduler())
+    logger.info("Publish scheduler started")
 
     init_minio()
     logger.info(f"MinIO connected: {settings.MINIO_ENDPOINT}")
@@ -45,6 +49,13 @@ async def lifespan(app: FastAPI):
     except asyncio.CancelledError:
         pass
     logger.info("Email watcher stoped")
+
+    publish_task.cancel()
+    try:
+        await publish_task
+    except asyncio.CancelledError:
+        pass
+    logger.info("Publish scheduler stopped")
 
 
     await engine.dispose()

@@ -30,6 +30,7 @@ class Settings(BaseSettings):
     APP_ENV: Literal["development", "staging", "production"] = "development"
     DEBUG: bool = False
     FORCE_REVIEW_TICKETS: bool = False
+    PUBLISH_POLL_INTERVAL: int = 60
 
     # LLM
     GPT_URL: str
