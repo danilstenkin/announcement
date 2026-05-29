@@ -29,6 +29,40 @@ from datetime import timedelta
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src" / "app"))
 
+
+def _load_env() -> None:
+    """Load a .env into os.environ before importing config.
+
+    config.Settings reads ".env" relative to CWD; the file may instead live in
+    src/app (next to where the app is started). Search common spots and inject
+    keys that aren't already set. Override with SMOKE_ENV_FILE=path/to/.env.
+    """
+    candidates = []
+    if os.environ.get("SMOKE_ENV_FILE"):
+        candidates.append(pathlib.Path(os.environ["SMOKE_ENV_FILE"]))
+    candidates += [ROOT / ".env", ROOT / "src" / "app" / ".env", pathlib.Path.cwd() / ".env"]
+    for p in candidates:
+        try:
+            if not p or not p.is_file():
+                continue
+        except OSError:
+            continue
+        for raw in p.read_text(encoding="utf-8").splitlines():
+            line = raw.strip()
+            if not line or line.startswith("#") or "=" not in line:
+                continue
+            key, _, val = line.partition("=")
+            os.environ.setdefault(key.strip(), val.strip().strip('"').strip("'"))
+        print(f"Loaded env from {p}")
+        return
+    print(
+        "WARNING: no .env found (looked in repo root, src/app, cwd). "
+        "Set SMOKE_ENV_FILE=path\\to\\.env or run from the folder containing .env."
+    )
+
+
+_load_env()
+
 import httpx  # noqa: E402
 from sqlalchemy import select  # noqa: E402
 
