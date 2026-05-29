@@ -28,7 +28,8 @@ async def publish_due_once(session: AsyncSession, now: datetime) -> int:
     count = 0
     for pub_id in pub_ids:
         try:
-            await execute_publication(pub_id, session)
+            async with session.begin_nested():   # SAVEPOINT per row
+                await execute_publication(pub_id, session)
             count += 1
         except Exception:
             logger.exception("Failed to publish publication id={id}", id=pub_id)
