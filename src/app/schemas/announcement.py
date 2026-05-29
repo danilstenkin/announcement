@@ -68,6 +68,7 @@ class AnnouncementResponse(AnnouncementBase):
     email: Optional[str] = None
     created_at: datetime
     updated_at: datetime
+    published_at: Optional[datetime] = None
     is_read: Optional[bool] = None
     is_ai: bool = False
     source: Optional[str] = None
