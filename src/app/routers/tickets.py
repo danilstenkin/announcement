@@ -17,7 +17,9 @@ from models.publication import (
     AnnouncementPublication, PublicationKindEnum, PublicationStatusEnum,
 )
 from services.announcement_factory import create_announcement_from_ticket
+from services.publication import execute_publication
 from services.notifications import NotificationsService
+from models.announcement import get_astana_time
 from config import settings
 
 from datetime import datetime
@@ -456,6 +458,40 @@ async def approve_ticket(
         "announcement_id": str(ann.id),
         "publish_at": ticket.publish_at.isoformat(),
     }
+
+
+@router.post("/{ticket_id}/publish")
+async def publish_now(
+    ticket_id: UUID,
+    session: AsyncSession = Depends(get_db),
+    user: dict = Depends(_get_user),
+):
+    ticket = await _get_ticket(ticket_id, session)
+    if ticket.status == TicketStatusEnum.PUBLISHED:
+        raise HTTPException(400, "Already published")
+    if ticket.status == TicketStatusEnum.REJECTED:
+        raise HTTPException(400, "Ticket is rejected")
+    if not ticket.title:
+        raise HTTPException(400, "Cannot publish: title is empty")
+
+    now = get_astana_time()
+    ann = await create_announcement_from_ticket(ticket, session, hidden=True)
+    pub = AnnouncementPublication(
+        announcement_id=ann.id,
+        kind=PublicationKindEnum.PRIMARY,
+        publish_at=now,
+        status=PublicationStatusEnum.SCHEDULED,
+        actor_id=UUID(user["id"]) if user["id"] else None,
+        actor_name=user["name"],
+    )
+    session.add(pub)
+    ticket.publish_at = now
+    ticket.publish_confirmed = True
+    await session.flush()
+
+    await execute_publication(pub.id, session)
+    await session.commit()
+    return {"status": "published", "announcement_id": str(ann.id)}
 
 
 @router.post("/{ticket_id}/reject")
