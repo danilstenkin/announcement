@@ -1,5 +1,5 @@
 from enum import Enum
-from sqlalchemy import Column, String, Text, DateTime, ForeignKey, Enum as SQLEnum
+from sqlalchemy import Column, String, Text, Boolean, DateTime, ForeignKey, Enum as SQLEnum
 from sqlalchemy.dialects.postgresql import UUID, JSON
 from sqlalchemy.orm import relationship
 import uuid
@@ -14,6 +14,8 @@ class TicketStatusEnum(str, Enum):
     REVISION = "REVISION"
     APPROVED = "APPROVED"
     REJECTED = "REJECTED"
+    AGREED = "AGREED"
+    PUBLISHED = "PUBLISHED"
 
 
 class ReviewActionEnum(str, Enum):
@@ -24,6 +26,10 @@ class ReviewActionEnum(str, Enum):
     EDITED = "EDITED"
     APPROVED = "APPROVED"
     REJECTED = "REJECTED"
+    SCHEDULED = "SCHEDULED"
+    RESCHEDULED = "RESCHEDULED"
+    PUBLICATION_CANCELED = "PUBLICATION_CANCELED"
+    PUBLISHED = "PUBLISHED"
 
 
 class ReviewTicket(Base):
@@ -49,6 +55,9 @@ class ReviewTicket(Base):
     script_kz = Column(Text, nullable=True)
     ai_summary = Column(Text, nullable=True)
     source = Column(String(50), nullable=True)
+    recommended_publish_at = Column(DateTime(timezone=True), nullable=True)
+    publish_at = Column(DateTime(timezone=True), nullable=True)
+    publish_confirmed = Column(Boolean, default=False, nullable=False)
     created_at = Column(DateTime(timezone=True), default=get_astana_time, nullable=False)
     updated_at = Column(DateTime(timezone=True), default=get_astana_time, onupdate=get_astana_time, nullable=False)
 

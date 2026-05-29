@@ -26,4 +26,5 @@ class AIEmail(Base):
     script_kz = Column(Text, nullable=True)
     ai_summary = Column(Text, nullable=True)
     in_knowledge_base = Column(Boolean, nullable=True)
+    recommended_publish_date = Column(DateTime(timezone=True), nullable=True)
     created_at = Column(DateTime(timezone=True), default=get_astana_time, nullable=False)

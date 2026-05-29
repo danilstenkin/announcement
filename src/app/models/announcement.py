@@ -52,6 +52,7 @@ class Announcement(Base):
     email = Column(String(255), nullable=True)
     created_at = Column(DateTime(timezone=True), default=get_astana_time, nullable=False)
     updated_at = Column(DateTime(timezone=True), default=get_astana_time, onupdate=get_astana_time, nullable=False)
+    published_at = Column(DateTime(timezone=True), nullable=True)
 
     attachments = relationship(
         "Attachments",
