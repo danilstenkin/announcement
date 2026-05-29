@@ -7,20 +7,20 @@ from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from dependencies import get_db
-from dependencies.minio import get_minio_client
 from models.review_ticket import (
     ReviewTicket, ReviewHistory,
     TicketStatusEnum, ReviewActionEnum,
 )
 from models.incoming_emails import IncomingEmail, EmailStatusEnum
-from models.announcement import Announcement, AnnouncementCategoryEnum
 from models.email_attachment import EmailAttachment
-from models.attachments import Attachments
+from models.publication import (
+    AnnouncementPublication, PublicationKindEnum, PublicationStatusEnum,
+)
+from services.announcement_factory import create_announcement_from_ticket
 from services.notifications import NotificationsService
 from config import settings
 
-import os
-from datetime import datetime, timezone
+from datetime import datetime
 
 from urllib.parse import unquote
 from logger import get_logger
@@ -412,80 +412,50 @@ async def approve_ticket(
     user: dict = Depends(_get_user),
 ):
     ticket = await _get_ticket(ticket_id, session)
-    if ticket.status in (TicketStatusEnum.APPROVED, TicketStatusEnum.REJECTED):
+    if ticket.status in (
+        TicketStatusEnum.APPROVED, TicketStatusEnum.REJECTED, TicketStatusEnum.PUBLISHED,
+    ):
         raise HTTPException(400, "Ticket is already closed")
 
     if not ticket.title:
         raise HTTPException(400, "Cannot approve: title is empty")
 
-    announcement = Announcement(
-        title=ticket.title,
-        category=AnnouncementCategoryEnum.NEW,
-        text=ticket.body or "",
-        script_ru=ticket.script_ru,
-        script_kz=ticket.script_kz,
-        is_hidden=False,
-        created_by=SYSTEM_USER_ID,
-        name=SYSTEM_USER_NAME,
-        email=SYSTEM_USER_EMAIL,
-        is_ai=True,
-        source=ticket.source,
-    )
-    session.add(announcement)
-    await session.flush()
+    if not ticket.publish_confirmed or ticket.publish_at is None:
+        raise HTTPException(400, "Publish date must be confirmed first")
 
-    # Transfer attachments from email to announcement
-    att_result = await session.execute(
-        select(EmailAttachment).where(EmailAttachment.email_id == ticket.email_id)
-    )
-    email_atts = att_result.scalars().all()
-    if email_atts:
-        minio = get_minio_client()
-        for ea in email_atts:
-            try:
-                ts = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
-                new_key = f"announcements/{announcement.id}/{ts}_{os.path.basename(ea.filename)}"
-                await minio.copy_file(ea.object_key, new_key)
-                session.add(Attachments(
-                    announcement_id=announcement.id,
-                    filename=ea.filename,
-                    object_key=new_key,
-                    file_size=ea.file_size,
-                    content_type=ea.content_type,
-                ))
-            except Exception as err:
-                logger.error("Failed to transfer attachment {f}: {err}", f=ea.filename, err=err)
+    ann = await create_announcement_from_ticket(ticket, session, hidden=True)
 
-    ticket.status = TicketStatusEnum.APPROVED
+    session.add(AnnouncementPublication(
+        announcement_id=ann.id,
+        kind=PublicationKindEnum.PRIMARY,
+        publish_at=ticket.publish_at,
+        status=PublicationStatusEnum.SCHEDULED,
+        actor_id=UUID(user["id"]) if user["id"] else None,
+        actor_name=user["name"],
+    ))
 
-    await session.execute(
-        update(IncomingEmail)
-        .where(IncomingEmail.id == ticket.email_id)
-        .values(status=EmailStatusEnum.DONE)
-    )
+    ticket.status = TicketStatusEnum.AGREED
 
     session.add(ReviewHistory(
         ticket_id=ticket.id,
         action=ReviewActionEnum.APPROVED,
         actor_id=UUID(user["id"]) if user["id"] else None,
         actor_name=user["name"],
-        comment=f"Опубликован как анонс {announcement.id}",
+        comment=f"Запланирована публикация на {ticket.publish_at.isoformat()}",
     ))
 
     await session.commit()
 
     await _notify_ticket(
         event_type="APPROVED", ticket_id=str(ticket.id),
-        actor_name=user["name"], title=ticket.title, status="APPROVED",
+        actor_name=user["name"], title=ticket.title, status="AGREED",
     )
 
-    try:
-        notifications = NotificationsService(settings.EVENTS_WEBHOOK_URL)
-        await notifications.publish_new_announcement(announcement)
-    except Exception as e:
-        logger.error("Failed to send SSE notification: {err}", err=e)
-
-    return {"status": "approved", "announcement_id": str(announcement.id)}
+    return {
+        "status": "agreed",
+        "announcement_id": str(ann.id),
+        "publish_at": ticket.publish_at.isoformat(),
+    }
 
 
 @router.post("/{ticket_id}/reject")
