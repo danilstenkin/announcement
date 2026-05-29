@@ -441,6 +441,8 @@ async def approve_ticket(
         TicketStatusEnum.APPROVED, TicketStatusEnum.REJECTED, TicketStatusEnum.PUBLISHED,
     ):
         raise HTTPException(400, "Ticket is already closed")
+    if ticket.status == TicketStatusEnum.AGREED:
+        raise HTTPException(400, "Ticket already has a scheduled publication")
 
     if not ticket.title:
         raise HTTPException(400, "Cannot approve: title is empty")
@@ -498,6 +500,24 @@ async def publish_now(
         raise HTTPException(400, "Cannot publish: title is empty")
 
     now = get_astana_time()
+
+    # If the ticket was already approved/scheduled, publish the EXISTING
+    # scheduled publication instead of creating a duplicate announcement.
+    if ticket.announcement_id is not None:
+        existing_pub = (await session.execute(
+            select(AnnouncementPublication).where(
+                AnnouncementPublication.announcement_id == ticket.announcement_id,
+                AnnouncementPublication.kind == PublicationKindEnum.PRIMARY,
+                AnnouncementPublication.status == PublicationStatusEnum.SCHEDULED,
+            )
+        )).scalar_one_or_none()
+        if existing_pub is not None:
+            existing_pub.publish_at = now
+            await session.flush()
+            await execute_publication(existing_pub.id, session)
+            await session.commit()
+            return {"status": "published", "announcement_id": str(ticket.announcement_id)}
+
     ann = await create_announcement_from_ticket(ticket, session, hidden=True)
     pub = AnnouncementPublication(
         announcement_id=ann.id,

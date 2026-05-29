@@ -21,8 +21,14 @@ logger = get_logger(__name__)
 async def execute_publication(publication_id: UUID, session: AsyncSession) -> None:
     """Single publication path. Makes the announcement visible (PRIMARY),
     marks the publication PUBLISHED, notifies operators. No MinIO here."""
+    # Lock the publication row so the synchronous publish-now path and the
+    # background worker cannot both pass the SCHEDULED check and double-publish.
+    # If the worker holds the lock, this read blocks until it commits, then we
+    # re-read status=PUBLISHED below and return (idempotent).
     pub = (await session.execute(
-        select(AnnouncementPublication).where(AnnouncementPublication.id == publication_id)
+        select(AnnouncementPublication)
+        .where(AnnouncementPublication.id == publication_id)
+        .with_for_update()
     )).scalar_one_or_none()
     if pub is None or pub.status != PublicationStatusEnum.SCHEDULED:
         logger.info("execute_publication skipped: id={id} status={s}",
@@ -54,11 +60,7 @@ async def execute_publication(publication_id: UUID, session: AsyncSession) -> No
 
 
 async def _finalize_ticket_and_email(ann: Announcement, session: AsyncSession) -> None:
-    """Mark the originating ticket PUBLISHED and its email DONE.
-    The ticket<->announcement link (ReviewTicket.announcement_id) is added in Task 5/6;
-    guard until then so this is a no-op when the attribute is absent."""
-    if not hasattr(ReviewTicket, "announcement_id"):
-        return
+    """Mark the originating ticket PUBLISHED and its email DONE."""
     ticket = (await session.execute(
         select(ReviewTicket).where(ReviewTicket.announcement_id == ann.id)
     )).scalar_one_or_none()

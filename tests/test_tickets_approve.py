@@ -63,3 +63,22 @@ async def test_approve_schedules_future_publication(client, session):
     assert pub.kind == PublicationKindEnum.PRIMARY
     assert pub.status == PublicationStatusEnum.SCHEDULED
     assert pub.publish_at == t.publish_at
+
+
+async def test_approve_twice_is_rejected(client, session):
+    when = get_astana_time() + timedelta(days=1)
+    t = await _seed(session, confirmed=True, publish_at=when)
+
+    r1 = await client.post(f"/auto-announce/tickets/{t.id}/approve")
+    assert r1.status_code == 200, r1.text
+
+    r2 = await client.post(f"/auto-announce/tickets/{t.id}/approve")
+    assert r2.status_code == 400, r2.text
+
+    await session.refresh(t)
+    pubs = (await session.execute(
+        select(AnnouncementPublication).where(
+            AnnouncementPublication.announcement_id == t.announcement_id
+        )
+    )).scalars().all()
+    assert len(pubs) == 1

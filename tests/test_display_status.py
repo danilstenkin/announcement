@@ -25,6 +25,12 @@ def test_overdue_after_cancel():
     assert compute_display_status("IN_REVIEW", True, ["CANCELED"]) == "OVERDUE"
 
 
+def test_legacy_approved_shows_published():
+    # pre-feature closed/published tickets used APPROVED; display as PUBLISHED
+    assert compute_display_status("APPROVED", True, ["PUBLISHED"]) == "PUBLISHED"
+    assert compute_display_status("APPROVED", False, []) == "PUBLISHED"
+
+
 def test_on_approval_passthrough():
     # ON_APPROVAL is a future status (roles block); function should pass it through
     assert compute_display_status("ON_APPROVAL", True, []) == "ON_APPROVAL"

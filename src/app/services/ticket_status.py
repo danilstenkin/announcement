@@ -9,7 +9,8 @@ def compute_display_status(
     Precedence is intentional:
       PUBLISHED > AGREED(scheduled) > ON_APPROVAL > OVERDUE > NO_DATE > IN_PROGRESS.
     """
-    if status == "PUBLISHED":
+    # legacy APPROVED tickets are pre-feature closed/published tickets
+    if status in ("PUBLISHED", "APPROVED"):
         return "PUBLISHED"
 
     if status == "AGREED":
