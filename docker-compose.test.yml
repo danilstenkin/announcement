@@ -1,0 +1,40 @@
+services:
+  test-db:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: test
+      POSTGRES_PASSWORD: test
+      POSTGRES_DB: test
+    tmpfs:
+      - /var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U test"]
+      interval: 2s
+      timeout: 3s
+      retries: 20
+
+  tests:
+    image: python:3.12-slim
+    working_dir: /app
+    depends_on:
+      test-db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: "postgresql+asyncpg://test:test@test-db:5432/test"
+      MINIO_ENDPOINT: "test:9000"
+      MINIO_ACCESS_KEY: "x"
+      MINIO_SECRET_KEY: "x"
+      MINIO_BUCKET: "x"
+      GPT_URL: "http://localhost"
+      GPT_API_KEY: "x"
+      WEAVIATE_HOST: "localhost"
+      WEAVIATE_PORT: "8080"
+      WEAVIATE_GRPS: "50051"
+      EVENTS_WEBHOOK_URL: ""
+      APP_ENV: "development"
+    volumes:
+      - .:/app
+    command: >
+      bash -c "apt-get update -qq && apt-get install -y -qq gcc >/dev/null &&
+      pip install -q -r requirements-test.txt &&
+      pytest -v"
