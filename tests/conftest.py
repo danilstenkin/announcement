@@ -35,3 +35,23 @@ async def session(engine) -> AsyncSession:
         await sess.close()
         await trans.rollback()
         await connection.close()
+
+
+@pytest_asyncio.fixture
+async def client(session):
+    import httpx
+    from fastapi import FastAPI
+    from routers import router
+    from dependencies import get_db
+
+    app = FastAPI()
+    app.include_router(router)
+
+    async def _override():
+        yield session
+
+    app.dependency_overrides[get_db] = _override
+    transport = httpx.ASGITransport(app=app)
+    async with httpx.AsyncClient(transport=transport, base_url="http://test") as ac:
+        yield ac
+    app.dependency_overrides.clear()

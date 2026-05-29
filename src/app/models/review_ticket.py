@@ -58,6 +58,7 @@ class ReviewTicket(Base):
     recommended_publish_at = Column(DateTime(timezone=True), nullable=True)
     publish_at = Column(DateTime(timezone=True), nullable=True)
     publish_confirmed = Column(Boolean, default=False, nullable=False)
+    announcement_id = Column(UUID(as_uuid=True), nullable=True)
     created_at = Column(DateTime(timezone=True), default=get_astana_time, nullable=False)
     updated_at = Column(DateTime(timezone=True), default=get_astana_time, onupdate=get_astana_time, nullable=False)
 

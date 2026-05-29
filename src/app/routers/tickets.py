@@ -103,6 +103,10 @@ class RejectRequest(BaseModel):
     comment: Optional[str] = None
 
 
+class ConfirmDateRequest(BaseModel):
+    publish_at: Optional[datetime] = None
+
+
 # ── Helpers ─────────────────────────────────────────────
 
 def _get_user(
@@ -373,6 +377,30 @@ async def edit_ticket(
             actor_name=user["name"], title=ticket.title, status=ticket.status.value,
         )
     return {"status": "edited", "changed_fields": list(changes.keys())}
+
+
+@router.post("/{ticket_id}/confirm-date")
+async def confirm_date(
+    ticket_id: UUID,
+    req: ConfirmDateRequest,
+    session: AsyncSession = Depends(get_db),
+    user: dict = Depends(_get_user),
+):
+    ticket = await _get_ticket(ticket_id, session)
+    if ticket.status in (TicketStatusEnum.APPROVED, TicketStatusEnum.REJECTED, TicketStatusEnum.PUBLISHED):
+        raise HTTPException(400, "Ticket is already closed")
+    chosen = req.publish_at or ticket.recommended_publish_at
+    if chosen is None:
+        raise HTTPException(400, "No publish date provided and no recommendation available")
+    ticket.publish_at = chosen
+    ticket.publish_confirmed = True
+    session.add(ReviewHistory(
+        ticket_id=ticket.id, action=ReviewActionEnum.EDITED,
+        actor_id=UUID(user["id"]) if user["id"] else None, actor_name=user["name"],
+        comment=f"Дата публикации подтверждена: {chosen.isoformat()}",
+    ))
+    await session.commit()
+    return {"status": "confirmed", "publish_at": chosen.isoformat()}
 
 
 # ── Approve & Reject ────────────────────────────────────
