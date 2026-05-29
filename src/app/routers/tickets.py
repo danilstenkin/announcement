@@ -59,6 +59,10 @@ class TicketListOut(BaseModel):
     created_at: Optional[str] = None
     updated_at: Optional[str] = None
     display_status: Optional[str] = None
+    recommended_publish_at: Optional[str] = None
+    publish_at: Optional[str] = None
+    publish_confirmed: bool = False
+    announcement_id: Optional[UUID] = None
     history: list[HistoryOut] = []
 
     model_config = ConfigDict(from_attributes=True)
@@ -212,6 +216,10 @@ async def list_tickets(
                 t.status.value, t.publish_confirmed,
                 pub_status_map.get(t.announcement_id, []) if t.announcement_id else [],
             ),
+            recommended_publish_at=t.recommended_publish_at.isoformat() if t.recommended_publish_at else None,
+            publish_at=t.publish_at.isoformat() if t.publish_at else None,
+            publish_confirmed=t.publish_confirmed,
+            announcement_id=t.announcement_id,
             history=_build_history(t.history),
         ))
 
@@ -262,6 +270,10 @@ async def get_ticket(
         display_status=compute_display_status(
             ticket.status.value, ticket.publish_confirmed, pub_statuses,
         ),
+        recommended_publish_at=ticket.recommended_publish_at.isoformat() if ticket.recommended_publish_at else None,
+        publish_at=ticket.publish_at.isoformat() if ticket.publish_at else None,
+        publish_confirmed=ticket.publish_confirmed,
+        announcement_id=ticket.announcement_id,
         history=_build_history(ticket.history),
         attachments=atts,
     )
