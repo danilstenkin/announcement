@@ -494,6 +494,37 @@ async def publish_now(
     return {"status": "published", "announcement_id": str(ann.id)}
 
 
+@router.post("/{ticket_id}/cancel-publication")
+async def cancel_publication(
+    ticket_id: UUID,
+    session: AsyncSession = Depends(get_db),
+    user: dict = Depends(_get_user),
+):
+    ticket = await _get_ticket(ticket_id, session)
+    if ticket.announcement_id is None:
+        raise HTTPException(400, "No scheduled publication to cancel")
+    pub = (await session.execute(
+        select(AnnouncementPublication).where(
+            AnnouncementPublication.announcement_id == ticket.announcement_id,
+            AnnouncementPublication.kind == PublicationKindEnum.PRIMARY,
+            AnnouncementPublication.status == PublicationStatusEnum.SCHEDULED,
+        )
+    )).scalar_one_or_none()
+    if pub is None:
+        raise HTTPException(400, "No scheduled publication to cancel")
+
+    pub.status = PublicationStatusEnum.CANCELED
+    pub.canceled_at = get_astana_time()
+    ticket.status = TicketStatusEnum.IN_REVIEW
+    session.add(ReviewHistory(
+        ticket_id=ticket.id, action=ReviewActionEnum.PUBLICATION_CANCELED,
+        actor_id=UUID(user["id"]) if user["id"] else None, actor_name=user["name"],
+        comment="Публикация отменена",
+    ))
+    await session.commit()
+    return {"status": "publication_canceled"}
+
+
 @router.post("/{ticket_id}/reject")
 async def reject_ticket(
     ticket_id: UUID,
