@@ -4,6 +4,7 @@ import sys
 
 from sqlalchemy import engine_from_config
 from sqlalchemy import pool
+from sqlalchemy import text
 from alembic import context
 
 config = context.config
@@ -75,6 +76,13 @@ def run_migrations_online() -> None:
     )
 
     with connectable.connect() as connection:
+        # Alembic stores its version table in MANAGED_SCHEMA, so the schema must
+        # exist before migrations (and the version table) are created.
+        connection.execute(
+            text(f"CREATE SCHEMA IF NOT EXISTS {MANAGED_SCHEMA}")
+        )
+        connection.commit()
+
         context.configure(
             connection=connection,
             target_metadata=target_metadata,
