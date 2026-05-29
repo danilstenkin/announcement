@@ -1,3 +1,5 @@
+# Deliberate subset of requirements.txt (omits heavy/native deps not needed for tests).
+# Keep version pins in sync with requirements.txt when they change.
 sqlalchemy==2.0.45
 asyncpg==0.31.0
 fastapi==0.115.12
@@ -5,7 +7,7 @@ pydantic==2.12.5
 pydantic-settings==2.13.1
 pytz==2025.2
 httpx==0.28.1
-openai
+openai==2.38.0
 loguru==0.7.3
 alembic==1.18.4
 psycopg2-binary==2.9.11

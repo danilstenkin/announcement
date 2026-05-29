@@ -10,6 +10,8 @@ import models  # noqa: F401  (register all mappers)
 TEST_DB_URL = os.environ["DATABASE_URL"]
 
 
+# Function-scoped: asyncpg connections bind to the loop they were created on, and
+# session-scope here raises "attached to a different loop" under pytest-asyncio auto mode.
 @pytest_asyncio.fixture
 async def engine():
     eng = create_async_engine(TEST_DB_URL, future=True)
