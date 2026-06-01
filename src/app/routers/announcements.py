@@ -256,6 +256,7 @@ async def get_announcement_months(
             month_expr,
             func.count(Announcement.id).label("count"),
         )
+        .where(Announcement.is_hidden.is_(False))
         .group_by(month_expr)
         .order_by(desc(month_expr))
     )

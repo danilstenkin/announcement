@@ -52,3 +52,6 @@ migrations/versions/__pycache__/
 
 .DS_Store
 *.tar
+
+# Docker image archives
+*.tar.gz

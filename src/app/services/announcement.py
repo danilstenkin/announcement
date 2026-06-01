@@ -117,6 +117,7 @@ class AnnouncementsService:
                     ars.user_id == user_id,
                 ),
             )
+            .filter(Announcement.is_hidden.is_(False))
         )
 
         if month:
@@ -127,7 +128,6 @@ class AnnouncementsService:
             )
 
         stmt = stmt.order_by(
-            Announcement.is_hidden.desc(),
             Announcement.updated_at.desc(),
         )
 
