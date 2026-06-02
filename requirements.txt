@@ -17,6 +17,7 @@ aioimaplib
 packaging
 openai
 python-pptx
+XlsxWriter
 pymupdf
 python-docx
 openpyxl
