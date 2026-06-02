@@ -1,15 +1,55 @@
+import base64
 import re
 
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from dependencies.gpt import GPTClient, GPTConfig
 from logger import get_logger
 from models.ai_analysis import AIEmail
+from models.email_attachment import EmailAttachment
 from models.incoming_emails import EmailStatusEnum
 from pipeline.context import PipelineContext
 from pipeline.prompts import extract_system, select_prompt
 
 logger = get_logger(__name__)
+
+MAX_IMAGES = 5
+MAX_IMAGE_BYTES = 8 * 1024 * 1024  # 8 MB per image
+
+
+async def collect_email_image_data_urls(
+    session: AsyncSession,
+    email_id,
+    minio,
+    max_images: int = MAX_IMAGES,
+    max_bytes: int = MAX_IMAGE_BYTES,
+) -> list[str]:
+    """Fetch image attachments of an email from MinIO as base64 data URLs."""
+    rows = (await session.execute(
+        select(EmailAttachment)
+        .where(EmailAttachment.email_id == email_id)
+        .where(EmailAttachment.content_type.like("image/%"))
+        .order_by(EmailAttachment.uploaded_at)
+    )).scalars().all()
+
+    urls: list[str] = []
+    for att in rows:
+        if len(urls) >= max_images:
+            break
+        if att.file_size and att.file_size > max_bytes:
+            logger.info("Skipping oversized image {f} ({s} bytes)", f=att.filename, s=att.file_size)
+            continue
+        try:
+            data = await minio.download_file(att.object_key)
+        except Exception as e:
+            logger.error("Failed to read image {f}: {err}", f=att.filename, err=e)
+            continue
+        if len(data) > max_bytes:
+            continue
+        b64 = base64.b64encode(data).decode()
+        urls.append(f"data:{att.content_type};base64,{b64}")
+    return urls
 
 
 def _normalize_block_spacing(html: str) -> str:
@@ -60,6 +100,20 @@ async def analyze(ctx: PipelineContext, session: AsyncSession) -> None:
 
     is_default = prompt_type in ("default", "service_desk_default")
 
+    images: list[str] = []
+    if ctx.email_db_id:
+        try:
+            from dependencies.minio import get_minio_client
+            images = await collect_email_image_data_urls(
+                session, ctx.email_db_id, get_minio_client()
+            )
+            if images:
+                logger.info("Passing {n} image(s) to GPT for email={eid}",
+                            n=len(images), eid=ctx.email_db_id)
+        except Exception as e:
+            logger.error("Image collection failed for email={eid}: {err}",
+                         eid=ctx.email_db_id, err=e)
+
     try:
         async with GPTClient(GPTConfig()) as gpt:
             result = await gpt.format_email(
@@ -67,6 +121,7 @@ async def analyze(ctx: PipelineContext, session: AsyncSession) -> None:
                 template="",
                 prompt=prompt,
                 include_summary=is_default,
+                images=images,
             )
 
         ctx.ai_title = result.get("title", "")

@@ -64,6 +64,23 @@ class MinIOClient:
             logger.error(f"Failed to upload file to MinIO: {e}")
             raise
 
+    async def download_file(self, object_key: str) -> bytes:
+        """Read an object's bytes from MinIO."""
+        response = None
+        try:
+            response = self.client.get_object(
+                bucket_name=self.bucket_name,
+                object_name=object_key,
+            )
+            return response.read()
+        except S3Error as e:
+            logger.error(f"Failed to download file from MinIO: {e}")
+            raise
+        finally:
+            if response is not None:
+                response.close()
+                response.release_conn()
+
     async def delete_file(self, object_key: str) -> None:
         try:
             self.client.remove_object(

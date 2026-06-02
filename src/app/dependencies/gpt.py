@@ -40,6 +40,21 @@ class GPTInvalidJSONError(GPTError):
     """Response content is not valid JSON"""
 
 
+def build_user_content(text: str, images: list[str] | None):
+    """Build a Chat Completions user `content`.
+
+    No images -> plain string (keeps text-only requests unchanged).
+    With images -> multimodal array: the text plus one image_url per image.
+    Each image must be a full data URL, e.g. 'data:image/png;base64,...'.
+    """
+    if not images:
+        return text
+    content = [{"type": "text", "text": text}]
+    for url in images:
+        content.append({"type": "image_url", "image_url": {"url": url}})
+    return content
+
+
 @dataclass(frozen=True)
 class GPTConfig:
     base_url: str = settings.GPT_URL
@@ -80,6 +95,7 @@ class GPTClient:
         temperature: float | None = None,
         max_tokens: int = 12000,
         include_summary: bool = False,
+        images: list[str] | None = None,
     ) -> dict[str, Any]:
         properties: dict[str, Any] = {
             "title": {
@@ -124,7 +140,7 @@ class GPTClient:
             "model": self._config.model,
             "messages": [
                 {"role": "system", "content": prompt},
-                {"role": "user", "content": user_content},
+                {"role": "user", "content": build_user_content(user_content, images)},
             ],
             "max_tokens": max_tokens,
             "response_format": {
@@ -149,7 +165,8 @@ class GPTClient:
             "GPT request: model={model}, url={url}, messages_len={ml}",
             model=request_params["model"],
             url=self._config.base_url,
-            ml=sum(len(m["content"]) for m in request_params["messages"]),
+            ml=sum(len(m["content"]) for m in request_params["messages"]
+                   if isinstance(m["content"], str)),
         )
         logger.debug("GPT request params: {params}", params=_json.dumps(request_params, ensure_ascii=False, default=str))
 
