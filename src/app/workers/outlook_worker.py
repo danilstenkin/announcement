@@ -15,6 +15,8 @@ from html import unescape
 
 from aioimaplib import aioimaplib
 
+from pipeline.source import resolve_source
+
 from config import settings
 from dependencies.minio import get_minio_client
 from logger import get_logger
@@ -346,14 +348,8 @@ async def _process_unseen(client):
             message_id = message.get("Message-ID", f"uid-{uid}")
             received_at = _parse_received_at(message)
 
-            # Определяем источник — принимаем только SD и komek
-            _SOURCE_MAP = {
-                "sd_info@Fortebank.com": "ServiceDesk",
-                "komek@Fortebank.com": "komek",
-                "AAAskarova@Fortebank.com": "ServiceDesk",
-                "DAStenkin@Fortebank.com": "ServiceDesk",
-            }
-            source = _SOURCE_MAP.get(sender_email, "other")
+            # Определяем источник по отправителю (общий хелпер с отчётностью)
+            source = resolve_source(sender_email)
 
             body, links = _extract_text(message)
             body = _clean_body(body)
