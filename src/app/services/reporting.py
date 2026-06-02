@@ -35,7 +35,6 @@ class MessageRow:
     announcement_id: UUID | None
     announcement_title: str | None
     published_at: datetime | None
-    cc_scope: str                   # «для КЦ» | «не для КЦ» | «—»
 
 
 @dataclass
@@ -47,8 +46,6 @@ class Summary:
     manual: int
     unaddressed_total: int
     unaddressed_by_source: dict[str, int]
-    cc_yes: int
-    cc_no: int
 
 
 def _almaty(dt: datetime | None) -> datetime | None:
@@ -97,13 +94,6 @@ class ReportingService:
                 (now - email.received_at).total_seconds() / 3600, 1
             )
 
-            if email.status == EmailStatusEnum.GREEN:
-                cc_scope = "не для КЦ"
-            elif email.status == EmailStatusEnum.RED or ticket is not None or ann is not None:
-                cc_scope = "для КЦ"
-            else:
-                cc_scope = "—"
-
             rows.append(MessageRow(
                 email_id=email.id,
                 received_at=_almaty(email.received_at),
@@ -120,7 +110,6 @@ class ReportingService:
                 announcement_id=ann.id if ann else None,
                 announcement_title=ann.title if ann else None,
                 published_at=_almaty(ann.published_at) if ann else None,
-                cc_scope=cc_scope,
             ))
         return rows
 
@@ -137,6 +126,4 @@ def compute_summary(rows: list[MessageRow]) -> Summary:
         manual=sum(1 for r in rows if r.processing_type == "MANUAL"),
         unaddressed_total=len(unaddressed),
         unaddressed_by_source=dict(Counter(r.source for r in unaddressed)),
-        cc_yes=sum(1 for r in rows if r.cc_scope == "для КЦ"),
-        cc_no=sum(1 for r in rows if r.cc_scope == "не для КЦ"),
     )

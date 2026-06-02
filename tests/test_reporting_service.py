@@ -42,7 +42,6 @@ async def test_email_with_open_ticket_is_manual_unaddressed(session):
     assert row.processing_type == "MANUAL"
     assert row.addressed is False
     assert row.idle_hours is not None and row.idle_hours >= 0
-    assert row.cc_scope == "для КЦ"
 
 
 async def test_period_filter_excludes_outside(session):

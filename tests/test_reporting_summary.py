@@ -10,7 +10,7 @@ def _row(**kw):
         source="ServiceDesk", subject="s", email_status="DONE",
         processing_type="AUTO", ticket_status=None, assignee_name=None,
         publish_at=None, addressed=True, idle_hours=None, announcement_id=None,
-        announcement_title=None, published_at=None, cc_scope="для КЦ",
+        announcement_title=None, published_at=None,
     )
     base.update(kw)
     return MessageRow(**base)
@@ -18,9 +18,9 @@ def _row(**kw):
 
 def test_summary_counts():
     rows = [
-        _row(source="ServiceDesk", email_status="DONE", processing_type="AUTO", addressed=True, cc_scope="для КЦ"),
-        _row(source="komek", email_status="RED", processing_type="MANUAL", addressed=False, cc_scope="для КЦ"),
-        _row(source="other", email_status="GREEN", processing_type="MANUAL", addressed=True, cc_scope="не для КЦ"),
+        _row(source="ServiceDesk", email_status="DONE", processing_type="AUTO", addressed=True),
+        _row(source="komek", email_status="RED", processing_type="MANUAL", addressed=False),
+        _row(source="other", email_status="GREEN", processing_type="MANUAL", addressed=True),
     ]
     s = compute_summary(rows)
     assert s.total == 3
@@ -29,4 +29,3 @@ def test_summary_counts():
     assert s.auto == 1 and s.manual == 2
     assert s.unaddressed_total == 1
     assert s.unaddressed_by_source["komek"] == 1
-    assert s.cc_yes == 2 and s.cc_no == 1

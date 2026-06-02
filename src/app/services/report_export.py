@@ -8,7 +8,7 @@ _HEADERS = [
     "ID письма", "Дата получения", "Отправитель", "Источник", "Тема",
     "Статус письма", "Тип обработки", "Статус тикета", "Исполнитель",
     "План публикации", "Отработано", "Длительность простоя (ч)",
-    "ID анонса", "Заголовок анонса", "Опубликован", "Содержание (КЦ)",
+    "ID анонса", "Заголовок анонса", "Опубликован",
 ]
 
 
@@ -38,9 +38,6 @@ def build_report_xlsx(rows: list[MessageRow], summary: Summary) -> bytes:
     s.write(r, 0, "Неотработанные:", bold); s.write(r, 1, summary.unaddressed_total); r += 1
     for k, v in summary.unaddressed_by_source.items():
         s.write(r, 0, k); s.write(r, 1, v); r += 1
-    r += 1
-    s.write(r, 0, "Для КЦ:", bold); s.write(r, 1, summary.cc_yes); r += 1
-    s.write(r, 0, "Не для КЦ:", bold); s.write(r, 1, summary.cc_no)
 
     d = wb.add_worksheet("Сообщения")
     for col, h in enumerate(_HEADERS):
@@ -61,7 +58,6 @@ def build_report_xlsx(rows: list[MessageRow], summary: Summary) -> bytes:
         d.write(i, 12, str(row.announcement_id) if row.announcement_id else "")
         d.write(i, 13, row.announcement_title or "")
         d.write(i, 14, _fmt_dt(row.published_at))
-        d.write(i, 15, row.cc_scope)
 
     wb.close()
     return buf.getvalue()

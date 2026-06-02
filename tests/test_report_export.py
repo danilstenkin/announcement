@@ -15,14 +15,13 @@ def _row():
         email_status="DONE", processing_type="AUTO", ticket_status=None,
         assignee_name=None, publish_at=None, addressed=True, idle_hours=None,
         announcement_id=None, announcement_title=None, published_at=None,
-        cc_scope="для КЦ",
     )
 
 
 def test_xlsx_has_two_sheets_and_data():
     summary = Summary(total=1, by_source={"ServiceDesk": 1}, by_status={"DONE": 1},
                       auto=1, manual=0, unaddressed_total=0,
-                      unaddressed_by_source={}, cc_yes=1, cc_no=0)
+                      unaddressed_by_source={})
     data = build_report_xlsx([_row()], summary)
     wb = load_workbook(io.BytesIO(data))
     assert wb.sheetnames == ["Сводка", "Сообщения"]
