@@ -55,13 +55,6 @@ class ReviewTicket(Base):
     body = Column(Text, nullable=True)
     script_ru = Column(Text, nullable=True)
     script_kz = Column(Text, nullable=True)
-    # Phase 2 — extended announcement fields edited by the business trainer.
-    category = Column(String(100), nullable=True)
-    product = Column(String(255), nullable=True)
-    instruction = Column(Text, nullable=True)
-    topic = Column(String(255), nullable=True)
-    links = Column(JSON, nullable=True)       # list of {"title": str, "url": str}
-    documents = Column(JSON, nullable=True)   # list of {"title": str, "url": str}
     ai_summary = Column(Text, nullable=True)
     source = Column(String(50), nullable=True)
     recommended_publish_at = Column(DateTime(timezone=True), nullable=True)

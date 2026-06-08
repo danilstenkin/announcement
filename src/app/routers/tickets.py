@@ -77,23 +77,10 @@ class AttachmentOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
-class LinkItem(BaseModel):
-    title: Optional[str] = None
-    url: str
-
-    model_config = ConfigDict(from_attributes=True)
-
-
 class TicketDetailOut(TicketListOut):
     body: Optional[str] = None
     script_ru: Optional[str] = None
     script_kz: Optional[str] = None
-    category: Optional[str] = None
-    product: Optional[str] = None
-    instruction: Optional[str] = None
-    topic: Optional[str] = None
-    links: Optional[list[LinkItem]] = None
-    documents: Optional[list[LinkItem]] = None
     original_html_key: Optional[str] = None
     attachments: list[AttachmentOut] = []
 
@@ -114,12 +101,6 @@ class EditRequest(BaseModel):
     body: Optional[str] = None
     script_ru: Optional[str] = None
     script_kz: Optional[str] = None
-    category: Optional[str] = None
-    product: Optional[str] = None
-    instruction: Optional[str] = None
-    topic: Optional[str] = None
-    links: Optional[list[LinkItem]] = None
-    documents: Optional[list[LinkItem]] = None
 
 
 class RejectRequest(BaseModel):
@@ -288,12 +269,6 @@ async def get_ticket(
         body=ticket.body,
         script_ru=ticket.script_ru,
         script_kz=ticket.script_kz,
-        category=ticket.category,
-        product=ticket.product,
-        instruction=ticket.instruction,
-        topic=ticket.topic,
-        links=ticket.links,
-        documents=ticket.documents,
         ai_summary=ticket.ai_summary,
         original_html_key=email.original_html_key if email else None,
         created_at=ticket.created_at.isoformat() if ticket.created_at else None,
@@ -428,28 +403,6 @@ async def edit_ticket(
     if req.script_kz is not None and req.script_kz != ticket.script_kz:
         changes["script_kz"] = {"old": ticket.script_kz, "new": req.script_kz}
         ticket.script_kz = req.script_kz
-    if req.category is not None and req.category != ticket.category:
-        changes["category"] = {"old": ticket.category, "new": req.category}
-        ticket.category = req.category
-    if req.product is not None and req.product != ticket.product:
-        changes["product"] = {"old": ticket.product, "new": req.product}
-        ticket.product = req.product
-    if req.instruction is not None and req.instruction != ticket.instruction:
-        changes["instruction"] = {"old": "...", "new": "..."}
-        ticket.instruction = req.instruction
-    if req.topic is not None and req.topic != ticket.topic:
-        changes["topic"] = {"old": ticket.topic, "new": req.topic}
-        ticket.topic = req.topic
-    if req.links is not None:
-        new_links = [item.model_dump() for item in req.links]
-        if new_links != (ticket.links or []):
-            changes["links"] = {"old": "...", "new": "..."}
-            ticket.links = new_links
-    if req.documents is not None:
-        new_documents = [item.model_dump() for item in req.documents]
-        if new_documents != (ticket.documents or []):
-            changes["documents"] = {"old": "...", "new": "..."}
-            ticket.documents = new_documents
 
     if changes:
         session.add(ReviewHistory(
