@@ -111,12 +111,6 @@ class ConfirmDateRequest(BaseModel):
     publish_at: Optional[datetime] = None
 
 
-class ReturnApprovalRequest(BaseModel):
-    comment: Optional[str] = None
-    assignee_id: Optional[UUID] = None
-    assignee_name: Optional[str] = None
-
-
 # ── Helpers ─────────────────────────────────────────────
 
 def _get_user(
@@ -501,81 +495,6 @@ async def approve_ticket(
         "announcement_id": str(ann.id),
         "publish_at": ticket.publish_at.isoformat(),
     }
-
-
-@router.post("/{ticket_id}/submit-approval")
-async def submit_for_approval(
-    ticket_id: UUID,
-    session: AsyncSession = Depends(get_db),
-    user: dict = Depends(_get_user),
-):
-    """Send the ticket to a manager for approval (IN_REVIEW/REVISION → ON_APPROVAL).
-
-    Same preconditions as approve (title set, publish date confirmed) since the
-    manager approves the already-prepared announcement.
-    """
-    ticket = await _get_ticket(ticket_id, session)
-    if ticket.status in (
-        TicketStatusEnum.APPROVED, TicketStatusEnum.REJECTED,
-        TicketStatusEnum.PUBLISHED, TicketStatusEnum.AGREED,
-    ):
-        raise HTTPException(400, "Ticket is already closed")
-    if ticket.status == TicketStatusEnum.ON_APPROVAL:
-        raise HTTPException(400, "Ticket is already on approval")
-    if not ticket.title:
-        raise HTTPException(400, "Cannot submit: title is empty")
-    if not ticket.publish_confirmed or ticket.publish_at is None:
-        raise HTTPException(400, "Publish date must be confirmed first")
-
-    ticket.status = TicketStatusEnum.ON_APPROVAL
-    session.add(ReviewHistory(
-        ticket_id=ticket.id,
-        action=ReviewActionEnum.SENT_TO_APPROVAL,
-        actor_id=UUID(user["id"]) if user["id"] else None,
-        actor_name=user["name"],
-        comment="Отправлено на согласование",
-    ))
-    await session.commit()
-    await _notify_ticket(
-        event_type="SENT_TO_APPROVAL", ticket_id=str(ticket.id),
-        actor_name=user["name"], title=ticket.title, status="ON_APPROVAL",
-    )
-    return {"status": "on_approval"}
-
-
-@router.post("/{ticket_id}/return-approval")
-async def return_from_approval(
-    ticket_id: UUID,
-    req: ReturnApprovalRequest,
-    session: AsyncSession = Depends(get_db),
-    user: dict = Depends(_get_user),
-):
-    """Manager returns a ticket from approval back to the author (ON_APPROVAL → REVISION)."""
-    ticket = await _get_ticket(ticket_id, session)
-    if ticket.status != TicketStatusEnum.ON_APPROVAL:
-        raise HTTPException(400, "Ticket is not on approval")
-
-    if req.assignee_id is not None:
-        ticket.assignee_id = req.assignee_id
-        ticket.assignee_name = req.assignee_name
-    ticket.status = TicketStatusEnum.REVISION
-
-    session.add(ReviewHistory(
-        ticket_id=ticket.id,
-        action=ReviewActionEnum.SENT_TO_REVISION,
-        actor_id=UUID(user["id"]) if user["id"] else None,
-        actor_name=user["name"],
-        comment=req.comment,
-    ))
-    await session.commit()
-    await _notify_ticket(
-        event_type="SENT_TO_REVISION", ticket_id=str(ticket.id),
-        actor_name=user["name"],
-        assignee_id=str(ticket.assignee_id) if ticket.assignee_id else None,
-        assignee_name=ticket.assignee_name, title=ticket.title,
-        comment=req.comment, status="REVISION",
-    )
-    return {"status": "revision"}
 
 
 @router.post("/{ticket_id}/publish")
