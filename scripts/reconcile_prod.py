@@ -45,6 +45,14 @@ RELOCATE_ENUMS = [
     "emailstatusenum",
 ]
 
+# Pre-existing enums came from the old migration history and may be missing
+# values the current code uses (prod's emailstatusenum lacked DONE). Bring them
+# up to the full set the models define. ADD VALUE IF NOT EXISTS is idempotent.
+SYNC_ENUM_VALUES = {
+    "emailstatusenum": ["PROCESSING", "GREEN", "RED", "YELLOW", "GRAY", "DONE"],
+    "announcementcategoryenum": ["TECH_QUESTION", "CHANGE", "NEW", "REVOKED"],
+}
+
 # Columns present in the models but missing on prod's existing tables.
 # All nullable / defaulted, so adding them is safe for existing rows.
 ADD_COLUMNS = [
@@ -99,6 +107,24 @@ async def _apply_schema(url: str) -> None:
     await engine.dispose()
 
 
+async def _sync_enum_values(url: str) -> None:
+    """Add enum values the models define but prod's (foreign-history) enums lack.
+    Run via plain asyncpg in autocommit — ALTER TYPE ADD VALUE cannot run inside a
+    transaction block on older PostgreSQL."""
+    import asyncpg
+
+    dsn = url.replace("postgresql+asyncpg://", "postgresql://")
+    conn = await asyncpg.connect(dsn)
+    try:
+        for enum_name, values in SYNC_ENUM_VALUES.items():
+            for v in values:
+                await conn.execute(
+                    f"ALTER TYPE {SCHEMA}.{enum_name} ADD VALUE IF NOT EXISTS '{v}'"
+                )
+    finally:
+        await conn.close()
+
+
 def _head_revision() -> str:
     """Read this repo's head revision from the migration files (no DB needed)."""
     from alembic.config import Config
@@ -135,8 +161,9 @@ def main() -> None:
     url = _resolve_url()
     target = url.split("@")[-1]  # host:port/db, without credentials
     print(f"Target DB: {target}")
-    print("1/2  Creating missing tables/columns (existing data untouched)...")
+    print("1/2  Creating missing tables/columns + syncing enum values (existing data untouched)...")
     asyncio.run(_apply_schema(url))
+    asyncio.run(_sync_enum_values(url))
     print("2/2  Stamping alembic to head...")
     asyncio.run(_stamp_head(url))
     print("Done. DB is reconciled and on this repo's migration history.")

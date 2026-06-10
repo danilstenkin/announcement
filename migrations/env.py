@@ -28,7 +28,10 @@ target_metadata = Base.metadata
 db_url = os.environ.get("DATABASE_URL")
 if db_url:
     db_url = db_url.replace("+asyncpg", "+psycopg2")
-    config.set_main_option("sqlalchemy.url", db_url)
+    # set_main_option stores into configparser, which treats % as interpolation
+    # syntax — URL-encoded passwords (e.g. %23 for #) would raise. Escape to %%;
+    # configparser un-escapes back to a single % when the value is read.
+    config.set_main_option("sqlalchemy.url", db_url.replace("%", "%%"))
 
 
 def include_name(name, type_, parent_names):
