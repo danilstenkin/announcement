@@ -99,14 +99,36 @@ async def _apply_schema(url: str) -> None:
     await engine.dispose()
 
 
-def _stamp_head(url: str) -> None:
+def _head_revision() -> str:
+    """Read this repo's head revision from the migration files (no DB needed)."""
     from alembic.config import Config
-    from alembic import command
+    from alembic.script import ScriptDirectory
 
-    os.environ["DATABASE_URL"] = url  # env.py reads this (converts to psycopg2 itself)
-    cfg = Config(str(ROOT / "alembic.ini"))
+    cfg = Config()  # no alembic.ini → no configparser interpolation on the URL
     cfg.set_main_option("script_location", str(ROOT / "migrations"))
-    command.stamp(cfg, "head", purge=True)
+    return ScriptDirectory.from_config(cfg).get_current_head()
+
+
+async def _stamp_head(url: str) -> None:
+    """Equivalent of `alembic stamp head --purge`, written directly so we don't
+    push the DB URL through alembic's configparser (which treats % specially)."""
+    import asyncpg
+
+    head = _head_revision()
+    dsn = url.replace("postgresql+asyncpg://", "postgresql://")
+    conn = await asyncpg.connect(dsn)
+    try:
+        await conn.execute(
+            f"CREATE TABLE IF NOT EXISTS {SCHEMA}.alembic_version "
+            f"(version_num varchar(32) NOT NULL)"
+        )
+        await conn.execute(f"DELETE FROM {SCHEMA}.alembic_version")
+        await conn.execute(
+            f"INSERT INTO {SCHEMA}.alembic_version (version_num) VALUES ($1)", head
+        )
+    finally:
+        await conn.close()
+    print(f"     alembic_version set to {head}")
 
 
 def main() -> None:
@@ -116,7 +138,7 @@ def main() -> None:
     print("1/2  Creating missing tables/columns (existing data untouched)...")
     asyncio.run(_apply_schema(url))
     print("2/2  Stamping alembic to head...")
-    _stamp_head(url)
+    asyncio.run(_stamp_head(url))
     print("Done. DB is reconciled and on this repo's migration history.")
 
 
