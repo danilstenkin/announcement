@@ -30,6 +30,9 @@ class ReviewActionEnum(str, Enum):
     RESCHEDULED = "RESCHEDULED"
     PUBLICATION_CANCELED = "PUBLICATION_CANCELED"
     PUBLISHED = "PUBLISHED"
+    TRANSFER_REQUESTED = "TRANSFER_REQUESTED"
+    TRANSFER_APPROVED = "TRANSFER_APPROVED"
+    TRANSFER_REJECTED = "TRANSFER_REJECTED"
 
 
 class ReviewTicket(Base):
@@ -59,6 +62,14 @@ class ReviewTicket(Base):
     publish_at = Column(DateTime(timezone=True), nullable=True)
     publish_confirmed = Column(Boolean, default=False, nullable=False)
     announcement_id = Column(UUID(as_uuid=True), nullable=True)
+    # Передача анонса другому тренеру с подтверждением руководителя УЦ.
+    # Заполнены = есть запрос на передачу, ожидающий подтверждения.
+    pending_assignee_id = Column(UUID(as_uuid=True), nullable=True)
+    pending_assignee_name = Column(String(255), nullable=True)
+    transfer_requested_by_id = Column(UUID(as_uuid=True), nullable=True)
+    transfer_requested_by_name = Column(String(255), nullable=True)
+    transfer_requested_at = Column(DateTime(timezone=True), nullable=True)
+    transfer_reason = Column(Text, nullable=True)
     created_at = Column(DateTime(timezone=True), default=get_astana_time, nullable=False)
     updated_at = Column(DateTime(timezone=True), default=get_astana_time, onupdate=get_astana_time, nullable=False)
 

@@ -55,3 +55,4 @@ migrations/versions/__pycache__/
 
 # Docker image archives
 *.tar.gz
+*.tar.bak

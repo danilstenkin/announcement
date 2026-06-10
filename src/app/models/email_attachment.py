@@ -1,6 +1,7 @@
-from sqlalchemy import Column, String, Integer, DateTime, ForeignKey
+from sqlalchemy import Column, String, Integer, DateTime, ForeignKey, Boolean
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
+from sqlalchemy.sql import expression
 import uuid
 from models.announcement import get_astana_time
 from models.base import Base
@@ -20,6 +21,12 @@ class EmailAttachment(Base):
     object_key = Column(String(500), nullable=False)
     file_size = Column(Integer, nullable=True)
     content_type = Column(String(100), nullable=True)
+    # Inline images embedded in the email body (e.g. screenshots). Kept for GPT
+    # vision analysis but hidden from user-facing responses and not transferred
+    # to the published announcement.
+    is_inline = Column(
+        Boolean, nullable=False, server_default=expression.false(), default=False
+    )
     uploaded_at = Column(DateTime(timezone=True), default=get_astana_time, nullable=False)
 
     email = relationship("IncomingEmail")

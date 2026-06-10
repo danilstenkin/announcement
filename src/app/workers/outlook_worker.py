@@ -27,6 +27,11 @@ from pipeline.steps.parse_attachments import extract_attachments_text
 
 logger = get_logger(__name__)
 
+# Минимальный размер inline-картинки (вставленной прямо в тело письма),
+# чтобы сохранить её и отправить в ИИ. Мелкие inline-картинки — это почти
+# всегда логотипы/иконки из подписи, их пропускаем.
+INLINE_IMAGE_MIN_BYTES = 8 * 1024
+
 
 # ── Маппинг email → источник ────────────────────────────
 # Ключ — подстрока или домен адреса отправителя (lowercase).
@@ -241,12 +246,13 @@ def _extract_attachments(message, uid: str) -> list[dict]:
         )
         is_attachment = disposition == "attachment"                 # явное вложение
         is_inline_image = disposition == "inline" and ct.startswith("image/")  # встроенная картинка
-        if is_inline_image:
-            continue                                               # пропускаем inline-картинки (логотипы из подписи)
-        if not is_attachment and not filename:
+        if not is_attachment and not is_inline_image and not filename:
             continue                                               # не вложение — пропускаем
         payload = part.get_payload(decode=True)                    # сырые байты файла (base64 → bytes)
         if not payload:
+            continue
+        # inline-картинки берём только достаточно крупные: мелкие — логотипы из подписи
+        if is_inline_image and len(payload) < INLINE_IMAGE_MIN_BYTES:
             continue
         if filename:
             filename = _safe_filename(filename)                    # очищаем имя файла

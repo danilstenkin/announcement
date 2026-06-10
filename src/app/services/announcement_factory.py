@@ -46,7 +46,10 @@ async def create_announcement_from_ticket(
 
 async def _transfer_attachments(ticket: ReviewTicket, session: AsyncSession, announcement_id: UUID) -> None:
     result = await session.execute(
-        select(EmailAttachment).where(EmailAttachment.email_id == ticket.email_id)
+        select(EmailAttachment).where(
+            EmailAttachment.email_id == ticket.email_id,
+            EmailAttachment.is_inline.is_(False),  # inline-картинки в анонс не переносим
+        )
     )
     email_atts = result.scalars().all()
     if not email_atts:

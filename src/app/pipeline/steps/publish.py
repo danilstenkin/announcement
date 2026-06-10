@@ -80,7 +80,10 @@ async def _transfer_attachments(
         return
 
     result = await session.execute(
-        select(EmailAttachment).where(EmailAttachment.email_id == ctx.email_db_id)
+        select(EmailAttachment).where(
+            EmailAttachment.email_id == ctx.email_db_id,
+            EmailAttachment.is_inline.is_(False),  # inline-картинки в анонс не переносим
+        )
     )
 
     email_attachments = result.scalars().all()

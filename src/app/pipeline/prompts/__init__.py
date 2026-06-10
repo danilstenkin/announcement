@@ -53,7 +53,13 @@ def extract_system(text: str) -> str | None:
 _SERVICE_DESK_SENDERS = {
     "sd_info@Fortebank.com",
     "AAAskarova@Fortebank.com",
-    "DAStenkin@Fortebank.com",
+}
+
+# Розничные рассылки: всегда обрабатываются дефолтным промптом и уходят
+# на ручную проверку тренеру (status RED, без автопубликации).
+_RETAIL_INFO_SENDERS = {
+    "retailinfo2@fortebank.com",
+    "dastenkin@fortebank.com",
 }
 
 def _is_emergency(text: str) -> bool:
@@ -61,6 +67,10 @@ def _is_emergency(text: str) -> bool:
 
 
 def select_prompt(email_body: str, email_from: str) -> tuple[str, str]:
+    if email_from and email_from.strip().lower() in _RETAIL_INFO_SENDERS:
+        # Дефолтный промпт → status RED → всегда review-ticket (не автопубликуем).
+        return PROMPT_DEFAULT, "default"
+
     if email_from in _SERVICE_DESK_SENDERS:
         if _is_emergency(email_body):
             return PROMPT_EMERGENCY, "service_desk"

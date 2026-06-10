@@ -1,7 +1,7 @@
 from typing import Optional
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Header
+from fastapi import APIRouter, Depends, HTTPException, Header, File, UploadFile
 from pydantic import BaseModel, ConfigDict
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -20,6 +20,7 @@ from services.announcement_factory import create_announcement_from_ticket
 from services.ticket_status import compute_display_status
 from services.publication import execute_publication
 from services.notifications import NotificationsService
+from dependencies.minio import get_minio_client
 from models.announcement import get_astana_time
 from config import settings
 
@@ -31,6 +32,9 @@ from logger import get_logger
 logger = get_logger(__name__)
 
 router = APIRouter(prefix="/auto-announce/tickets", tags=["review-tickets"])
+
+MAX_TICKET_ATTACHMENTS = 5
+MAX_TICKET_ATTACHMENT_BYTES = 25 * 1024 * 1024  # 25 MB per file
 
 
 # ── Schemas ─────────────────────────────────────────────
@@ -63,6 +67,11 @@ class TicketListOut(BaseModel):
     publish_at: Optional[str] = None
     publish_confirmed: bool = False
     announcement_id: Optional[UUID] = None
+    pending_assignee_id: Optional[UUID] = None
+    pending_assignee_name: Optional[str] = None
+    transfer_requested_by_name: Optional[str] = None
+    transfer_requested_at: Optional[str] = None
+    transfer_reason: Optional[str] = None
     history: list[HistoryOut] = []
 
     model_config = ConfigDict(from_attributes=True)
@@ -111,6 +120,12 @@ class ConfirmDateRequest(BaseModel):
     publish_at: Optional[datetime] = None
 
 
+class TransferRequest(BaseModel):
+    assignee_id: UUID
+    assignee_name: str
+    reason: str
+
+
 # ── Helpers ─────────────────────────────────────────────
 
 def _get_user(
@@ -144,40 +159,9 @@ def _build_history(history_items) -> list[HistoryOut]:
     ]
 
 
-async def _notify_ticket(event_type: str, ticket_id: str, **kwargs):
-    """Send ticket event to webhook → Redis pub/sub → SSE."""
-    try:
-        notifications = NotificationsService(settings.EVENTS_WEBHOOK_URL)
-        await notifications.publish_ticket_event(
-            event_type=event_type, ticket_id=ticket_id, **kwargs,
-        )
-    except Exception as e:
-        logger.error("Failed to send ticket event: {err}", err=e)
-
-
-# ── List & Detail ───────────────────────────────────────
-
-@router.get("", response_model=list[TicketListOut])
-async def list_tickets(
-    status: Optional[str] = None,
-    assignee_id: Optional[UUID] = None,
-    session: AsyncSession = Depends(get_db),
-):
-    query = select(ReviewTicket).order_by(ReviewTicket.created_at.desc())
-
-    if status:
-        query = query.where(ReviewTicket.status == TicketStatusEnum(status))
-    if assignee_id:
-        query = query.where(ReviewTicket.assignee_id == assignee_id)
-
-    if not status:
-        query = query.where(
-            ReviewTicket.status.notin_([TicketStatusEnum.APPROVED, TicketStatusEnum.REJECTED])
-        )
-
-    result = await session.execute(query)
-    tickets = result.scalars().all()
-
+async def _serialize_ticket_rows(tickets, session: AsyncSession) -> list[TicketListOut]:
+    """Map ReviewTicket rows to TicketListOut, batch-loading sender email and
+    publication statuses. Shared by the ticket list and the transfer-queue list."""
     email_ids = [t.email_id for t in tickets]
     if email_ids:
         emails_result = await session.execute(
@@ -220,10 +204,66 @@ async def list_tickets(
             publish_at=t.publish_at.isoformat() if t.publish_at else None,
             publish_confirmed=t.publish_confirmed,
             announcement_id=t.announcement_id,
+            pending_assignee_id=t.pending_assignee_id,
+            pending_assignee_name=t.pending_assignee_name,
+            transfer_requested_by_name=t.transfer_requested_by_name,
+            transfer_requested_at=t.transfer_requested_at.isoformat() if t.transfer_requested_at else None,
+            transfer_reason=t.transfer_reason,
             history=_build_history(t.history),
         ))
-
     return response
+
+
+async def _notify_ticket(event_type: str, ticket_id: str, **kwargs):
+    """Send ticket event to webhook → Redis pub/sub → SSE."""
+    try:
+        notifications = NotificationsService(settings.EVENTS_WEBHOOK_URL)
+        await notifications.publish_ticket_event(
+            event_type=event_type, ticket_id=ticket_id, **kwargs,
+        )
+    except Exception as e:
+        logger.error("Failed to send ticket event: {err}", err=e)
+
+
+# ── List & Detail ───────────────────────────────────────
+
+@router.get("", response_model=list[TicketListOut])
+async def list_tickets(
+    status: Optional[str] = None,
+    assignee_id: Optional[UUID] = None,
+    session: AsyncSession = Depends(get_db),
+):
+    query = select(ReviewTicket).order_by(ReviewTicket.created_at.desc())
+
+    if status:
+        query = query.where(ReviewTicket.status == TicketStatusEnum(status))
+    if assignee_id:
+        query = query.where(ReviewTicket.assignee_id == assignee_id)
+
+    if not status:
+        query = query.where(
+            ReviewTicket.status.notin_([TicketStatusEnum.APPROVED, TicketStatusEnum.REJECTED])
+        )
+
+    result = await session.execute(query)
+    tickets = result.scalars().all()
+    return await _serialize_ticket_rows(tickets, session)
+
+
+@router.get("/transfers/pending", response_model=list[TicketListOut])
+async def list_pending_transfers(
+    session: AsyncSession = Depends(get_db),
+):
+    """Queue for the head of training: tickets with a transfer awaiting approval.
+    These are the tickets to approve (`/{id}/transfer-approve`) or reject
+    (`/{id}/transfer-reject`). Oldest request first."""
+    query = (
+        select(ReviewTicket)
+        .where(ReviewTicket.pending_assignee_id.isnot(None))
+        .order_by(ReviewTicket.transfer_requested_at.asc())
+    )
+    tickets = (await session.execute(query)).scalars().all()
+    return await _serialize_ticket_rows(tickets, session)
 
 
 @router.get("/{ticket_id}", response_model=TicketDetailOut)
@@ -239,7 +279,10 @@ async def get_ticket(
     email = email_result.scalar_one_or_none()
 
     att_result = await session.execute(
-        select(EmailAttachment).where(EmailAttachment.email_id == ticket.email_id)
+        select(EmailAttachment).where(
+            EmailAttachment.email_id == ticket.email_id,
+            EmailAttachment.is_inline.is_(False),  # inline-картинки фронту не отдаём
+        )
     )
     atts = [AttachmentOut.model_validate(a) for a in att_result.scalars().all()]
 
@@ -274,6 +317,11 @@ async def get_ticket(
         publish_at=ticket.publish_at.isoformat() if ticket.publish_at else None,
         publish_confirmed=ticket.publish_confirmed,
         announcement_id=ticket.announcement_id,
+        pending_assignee_id=ticket.pending_assignee_id,
+        pending_assignee_name=ticket.pending_assignee_name,
+        transfer_requested_by_name=ticket.transfer_requested_by_name,
+        transfer_requested_at=ticket.transfer_requested_at.isoformat() if ticket.transfer_requested_at else None,
+        transfer_reason=ticket.transfer_reason,
         history=_build_history(ticket.history),
         attachments=atts,
     )
@@ -613,3 +661,223 @@ async def reject_ticket(
         actor_name=user["name"], title=ticket.title, status="REJECTED",
     )
     return {"status": "rejected"}
+
+
+# ── Transfer to another trainer (with head approval) ────
+
+@router.post("/{ticket_id}/transfer-request")
+async def request_transfer(
+    ticket_id: UUID,
+    req: TransferRequest,
+    session: AsyncSession = Depends(get_db),
+    user: dict = Depends(_get_user),
+):
+    """Trainer requests to hand the ticket to another trainer. Does NOT reassign —
+    waits for a head-of-training approval. Requires a justification (reason)."""
+    ticket = await _get_ticket(ticket_id, session)
+    if ticket.status in (
+        TicketStatusEnum.APPROVED, TicketStatusEnum.REJECTED, TicketStatusEnum.PUBLISHED,
+    ):
+        raise HTTPException(400, "Ticket is already closed")
+    if ticket.pending_assignee_id is not None:
+        raise HTTPException(400, "A transfer is already pending approval")
+    if not req.reason.strip():
+        raise HTTPException(400, "Reason is required")
+
+    ticket.pending_assignee_id = req.assignee_id
+    ticket.pending_assignee_name = req.assignee_name
+    ticket.transfer_requested_by_id = UUID(user["id"]) if user["id"] else None
+    ticket.transfer_requested_by_name = user["name"]
+    ticket.transfer_requested_at = get_astana_time()
+    ticket.transfer_reason = req.reason.strip()
+
+    session.add(ReviewHistory(
+        ticket_id=ticket.id,
+        action=ReviewActionEnum.TRANSFER_REQUESTED,
+        actor_id=UUID(user["id"]) if user["id"] else None,
+        actor_name=user["name"],
+        comment=f"Запрос передачи на {req.assignee_name}: {req.reason.strip()}",
+    ))
+    await session.commit()
+    await _notify_ticket(
+        event_type="TRANSFER_REQUESTED", ticket_id=str(ticket.id),
+        actor_name=user["name"], title=ticket.title, status=ticket.status.value,
+    )
+    return {"status": "transfer_requested", "pending_assignee_name": req.assignee_name}
+
+
+@router.post("/{ticket_id}/transfer-approve")
+async def approve_transfer(
+    ticket_id: UUID,
+    session: AsyncSession = Depends(get_db),
+    user: dict = Depends(_get_user),
+):
+    """Head of training approves the pending transfer → ticket is reassigned."""
+    ticket = await _get_ticket(ticket_id, session)
+    if ticket.pending_assignee_id is None:
+        raise HTTPException(400, "No pending transfer to approve")
+
+    new_id = ticket.pending_assignee_id
+    new_name = ticket.pending_assignee_name
+    ticket.assignee_id = new_id
+    ticket.assignee_name = new_name
+    ticket.status = TicketStatusEnum.IN_REVIEW
+    ticket.pending_assignee_id = None
+    ticket.pending_assignee_name = None
+    ticket.transfer_requested_by_id = None
+    ticket.transfer_requested_by_name = None
+    ticket.transfer_requested_at = None
+    ticket.transfer_reason = None
+
+    session.add(ReviewHistory(
+        ticket_id=ticket.id,
+        action=ReviewActionEnum.TRANSFER_APPROVED,
+        actor_id=UUID(user["id"]) if user["id"] else None,
+        actor_name=user["name"],
+        comment=f"Передача подтверждена, назначено на {new_name}",
+    ))
+    await session.commit()
+    await _notify_ticket(
+        event_type="TRANSFER_APPROVED", ticket_id=str(ticket.id),
+        actor_name=user["name"], assignee_id=str(new_id) if new_id else None,
+        assignee_name=new_name, title=ticket.title, status="IN_REVIEW",
+    )
+    return {"status": "transferred", "assignee_id": str(new_id) if new_id else None,
+            "assignee_name": new_name}
+
+
+@router.post("/{ticket_id}/transfer-reject")
+async def reject_transfer(
+    ticket_id: UUID,
+    req: RejectRequest,
+    session: AsyncSession = Depends(get_db),
+    user: dict = Depends(_get_user),
+):
+    """Head of training declines the pending transfer → ticket stays with current trainer."""
+    ticket = await _get_ticket(ticket_id, session)
+    if ticket.pending_assignee_id is None:
+        raise HTTPException(400, "No pending transfer to reject")
+
+    rejected_name = ticket.pending_assignee_name
+    ticket.pending_assignee_id = None
+    ticket.pending_assignee_name = None
+    ticket.transfer_requested_by_id = None
+    ticket.transfer_requested_by_name = None
+    ticket.transfer_requested_at = None
+    ticket.transfer_reason = None
+
+    session.add(ReviewHistory(
+        ticket_id=ticket.id,
+        action=ReviewActionEnum.TRANSFER_REJECTED,
+        actor_id=UUID(user["id"]) if user["id"] else None,
+        actor_name=user["name"],
+        comment=req.comment or f"Передача на {rejected_name} отклонена",
+    ))
+    await session.commit()
+    await _notify_ticket(
+        event_type="TRANSFER_REJECTED", ticket_id=str(ticket.id),
+        actor_name=user["name"], title=ticket.title, status=ticket.status.value,
+    )
+    return {"status": "transfer_rejected"}
+
+
+# ── Attachments ─────────────────────────────────────────
+
+def _ensure_attachments_editable(ticket: ReviewTicket) -> None:
+    """Attachments live on the email and are copied into the announcement at approve.
+    So they can only be changed while the ticket is still open and not yet converted."""
+    if ticket.announcement_id is not None or ticket.status in (
+        TicketStatusEnum.AGREED, TicketStatusEnum.APPROVED,
+        TicketStatusEnum.REJECTED, TicketStatusEnum.PUBLISHED,
+    ):
+        raise HTTPException(400, "Attachments can only be changed before the ticket is approved")
+
+
+@router.post("/{ticket_id}/attachments", response_model=list[AttachmentOut])
+async def upload_attachments(
+    ticket_id: UUID,
+    files: list[UploadFile] = File(...),
+    session: AsyncSession = Depends(get_db),
+    user: dict = Depends(_get_user),
+):
+    """Attach files to a ticket. Stored on the ticket's email, transferred to the
+    announcement on approve. Multipart field name: `files`."""
+    ticket = await _get_ticket(ticket_id, session)
+    _ensure_attachments_editable(ticket)
+
+    if not files:
+        raise HTTPException(400, "No files provided")
+    if len(files) > MAX_TICKET_ATTACHMENTS:
+        raise HTTPException(400, f"Too many files (max {MAX_TICKET_ATTACHMENTS})")
+
+    minio = get_minio_client()
+    created = []
+    for f in files:
+        data = await f.read()
+        if len(data) > MAX_TICKET_ATTACHMENT_BYTES:
+            raise HTTPException(
+                400, f"File {f.filename} exceeds {MAX_TICKET_ATTACHMENT_BYTES} bytes"
+            )
+        object_key = await minio.upload_file(
+            file_content=data,
+            filename=f.filename or "file",
+            announcement_id=f"emails/{ticket.email_id}",
+        )
+        att = EmailAttachment(
+            email_id=ticket.email_id,
+            filename=f.filename or "file",
+            object_key=object_key,
+            file_size=len(data),
+            content_type=f.content_type,
+        )
+        session.add(att)
+        created.append(att)
+
+    await session.flush()
+    session.add(ReviewHistory(
+        ticket_id=ticket.id,
+        action=ReviewActionEnum.EDITED,
+        actor_id=UUID(user["id"]) if user["id"] else None,
+        actor_name=user["name"],
+        comment="Добавлены вложения: " + ", ".join(a.filename for a in created),
+    ))
+    await session.commit()
+    return [AttachmentOut.model_validate(a) for a in created]
+
+
+@router.delete("/{ticket_id}/attachments/{attachment_id}")
+async def delete_attachment(
+    ticket_id: UUID,
+    attachment_id: UUID,
+    session: AsyncSession = Depends(get_db),
+    user: dict = Depends(_get_user),
+):
+    """Delete a ticket attachment (DB row + MinIO object)."""
+    ticket = await _get_ticket(ticket_id, session)
+    _ensure_attachments_editable(ticket)
+
+    att = (await session.execute(
+        select(EmailAttachment).where(
+            EmailAttachment.id == attachment_id,
+            EmailAttachment.email_id == ticket.email_id,
+        )
+    )).scalar_one_or_none()
+    if att is None:
+        raise HTTPException(404, "Attachment not found")
+
+    object_key, filename = att.object_key, att.filename
+    try:
+        await get_minio_client().delete_file(object_key)
+    except Exception:
+        logger.error("Failed to delete MinIO object {k}", k=object_key)
+
+    await session.delete(att)
+    session.add(ReviewHistory(
+        ticket_id=ticket.id,
+        action=ReviewActionEnum.EDITED,
+        actor_id=UUID(user["id"]) if user["id"] else None,
+        actor_name=user["name"],
+        comment=f"Удалено вложение: {filename}",
+    ))
+    await session.commit()
+    return {"status": "deleted"}

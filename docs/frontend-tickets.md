@@ -75,7 +75,9 @@ HTTP-код: `400` (нарушены условия действия), `404` (т
 (перенесён), `PUBLICATION_CANCELED` (публикация отменена), `PUBLISHED` (опубликован).
 
 ### 1.4. `source` — источник письма (поле `source`)
-`ServiceDesk`, `komek`, `other`. Определяется по адресу отправителя.
+`ServiceDesk`, `komek`, `RetailInfo`, `other`. Определяется по адресу отправителя.
+Список не закрыт — могут появляться новые значения, поэтому на фронте не хардкодить
+строгий enum, а обрабатывать неизвестные значения как `other`.
 
 ---
 
@@ -90,7 +92,7 @@ HTTP-код: `400` (нарушены условия действия), `404` (т
 | `assignee_id` | UUID | да | Кто взял тикет в работу (id). Null — не назначен. |
 | `assignee_name` | string | да | Имя исполнителя. |
 | `sender_email` | string | да | Email отправителя исходного письма. |
-| `source` | string | да | Источник: `ServiceDesk/komek/other` (см. 1.4). |
+| `source` | string | да | Источник: `ServiceDesk/komek/RetailInfo/other` (см. 1.4). |
 | `title` | string | да | Заголовок анонса (его правят в `edit`). |
 | `ai_summary` | string | да | Краткое содержание письма от ИИ (одно предложение). Для оператора напрямую не показывается. |
 | `created_at` | string | да | Когда тикет создан (ISO, UTC). |
@@ -127,7 +129,7 @@ HTTP-код: `400` (нарушены условия действия), `404` (т
 |---|---|---|---|
 | `id` | UUID | нет | Идентификатор вложения. |
 | `filename` | string | нет | Имя файла. |
-| `object_key` | string | нет | Ключ объекта в MinIO. **Это не URL.** Готовой ручки скачивания вложений тикета пока нет — скачать по нему напрямую нельзя. |
+| `object_key` | string | нет | Ключ объекта в MinIO. **Это не URL.** Чтобы скачать — дёрнуть ручку скачивания по `id` вложения (см. 3.12). |
 | `content_type` | string | да | MIME-тип (`image/png`, `application/pdf`, …). |
 
 ---
@@ -405,6 +407,58 @@ POST /auto-announce/tickets/{ticket_id}/reject
 
 ---
 
+### 3.12. Скачать вложение
+
+**Назначение:** получить ссылку на скачивание вложения исходного письма (из карточки
+тикета, поле `attachments[].id`).
+
+> ⚠️ Префикс **другой** — `/auto-announce`, без `/tickets`.
+
+```
+GET /auto-announce/attachments/{attachment_id}/download
+```
+
+**Path-параметры:**
+| Параметр | Тип | Описание |
+|---|---|---|
+| `attachment_id` | UUID | `attachments[].id` из карточки тикета (`GET /tickets/{id}`). |
+
+**Тело запроса:** нет.
+
+**Ответ `200`:** `{ "url": "<presigned URL>", "filename": "...", "content_type": "..." }`
+— `url` это временная прямая ссылка на файл в MinIO; по ней и качать/открывать.
+
+**Ошибки:** `404` «Attachment not found».
+
+---
+
+### 3.13. Посмотреть оригинал письма (HTML)
+
+**Назначение:** показать письмо «как пришло» (оригинальный HTML). Использует
+`email_id` тикета; доступно, если у письма есть `original_html_key`.
+
+> ⚠️ Префикс **другой** — `/auto-announce`, без `/tickets`. Ключ берётся по
+> `email_id`, а не по `original_html_key`.
+
+```
+GET /auto-announce/emails/{email_id}/original
+```
+
+**Path-параметры:**
+| Параметр | Тип | Описание |
+|---|---|---|
+| `email_id` | UUID | `email_id` тикета. |
+
+**Тело запроса:** нет.
+
+**Ответ `200`:** сырой HTML (`text/html`) — рендерить в `<iframe>`/новой вкладке,
+не как JSON. Inline-картинки уже встроены (data:base64).
+
+**Ошибки:** `404` «Email not found» или «Original HTML not available»
+(у письма нет сохранённого оригинала).
+
+---
+
 ## 4. Типовой сценарий обработки
 
 ```
@@ -424,6 +478,8 @@ POST /auto-announce/tickets/{ticket_id}/reject
 - Время в ответах — **UTC**; показывать в `Asia/Almaty` (+05).
 - `confirm-date` — `publish_at` строго **с поясом `+05:00`**.
 - Вложения приходят только в карточке (`GET /{id}`), не в списке.
-- У вложений тикета пока **нет ссылки на скачивание** (только `object_key`).
+- Скачивание вложений — `GET /auto-announce/attachments/{attachment_id}/download`
+  (отдаёт временный `url`); оригинал письма — `GET /auto-announce/emails/{email_id}/original`
+  (сырой HTML). Обе ручки **без** `/tickets` в пути.
 - `take/approve/publish/cancel-publication` тела запроса не требуют.
 - `X-User-Id`, если передаётся, должен быть валидным UUID.

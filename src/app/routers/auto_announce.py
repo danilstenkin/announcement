@@ -19,6 +19,7 @@ router = APIRouter(prefix="/auto-announce", tags=["auto-announce"])
 _SOURCE_MAP = {
     "sd_info@Fortebank.com": "ServiceDesk",
     "komek@Fortebank.com": "komek",
+    "RetailInfo2@Fortebank.com": "RetailInfo",
 }
 
 
@@ -98,7 +99,10 @@ async def download_attachment(
 ):
     """Возвращает presigned URL для скачивания вложения (email или announcement)."""
     result = await session.execute(
-        select(EmailAttachment).where(EmailAttachment.id == attachment_id)
+        select(EmailAttachment).where(
+            EmailAttachment.id == attachment_id,
+            EmailAttachment.is_inline.is_(False),  # inline-картинки фронту не отдаём
+        )
     )
     att = result.scalar_one_or_none()
 
@@ -138,7 +142,10 @@ async def get_pending_emails(session: AsyncSession = Depends(get_db)):
 
     # Вложения
     att_result = await session.execute(
-        select(EmailAttachment).where(EmailAttachment.email_id.in_(email_ids))
+        select(EmailAttachment).where(
+            EmailAttachment.email_id.in_(email_ids),
+            EmailAttachment.is_inline.is_(False),  # inline-картинки фронту не отдаём
+        )
     )
     att_map: dict[UUID, list] = {}
     for att in att_result.scalars().all():

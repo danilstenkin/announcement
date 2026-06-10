@@ -43,6 +43,7 @@ async def save_email(ctx: PipelineContext, session: AsyncSession) -> None:
             object_key=att["object_key"],       # ключ из MinIO
             file_size=att.get("size"),
             content_type=att.get("content_type"),
+            is_inline=att.get("inline", False),  # inline-картинка из тела письма
         )
         session.add(attachment)
 

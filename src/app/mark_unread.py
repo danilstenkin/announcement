@@ -14,7 +14,7 @@ import sys
 from aioimaplib import aioimaplib
 from config import settings
 
-TARGET_SENDERS = ["sd_info@Fortebank.com", "komek@Fortebank.com"]
+TARGET_SENDERS = ["sd_info@Fortebank.com", "komek@Fortebank.com", "RetailInfo2@Fortebank.com"]
 
 
 async def _mark_from(client, sender: str, count: int) -> int:

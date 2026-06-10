@@ -4,7 +4,8 @@ _SOURCE_MAP = {
     "sd_info@fortebank.com": "ServiceDesk",
     "komek@fortebank.com": "komek",
     "aaaskarova@fortebank.com": "ServiceDesk",
-    "dastenkin@fortebank.com": "ServiceDesk",
+    "dastenkin@fortebank.com": "RetailInfo",
+    "retailinfo2@fortebank.com": "RetailInfo",
 }
 
 
