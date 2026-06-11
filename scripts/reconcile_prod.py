@@ -53,16 +53,6 @@ SYNC_ENUM_VALUES = {
     "announcementcategoryenum": ["TECH_QUESTION", "CHANGE", "NEW", "REVOKED"],
 }
 
-# Columns present in the models but missing on prod's existing tables.
-# All nullable / defaulted, so adding them is safe for existing rows.
-ADD_COLUMNS = [
-    f"ALTER TABLE {SCHEMA}.announcements   ADD COLUMN IF NOT EXISTS is_ai boolean DEFAULT false",
-    f"ALTER TABLE {SCHEMA}.announcements   ADD COLUMN IF NOT EXISTS source varchar(50)",
-    f"ALTER TABLE {SCHEMA}.announcements   ADD COLUMN IF NOT EXISTS published_at timestamptz",
-    f"ALTER TABLE {SCHEMA}.incoming_emails ADD COLUMN IF NOT EXISTS original_html_key varchar(500)",
-]
-
-
 def _resolve_url() -> str:
     raw = (sys.argv[1] if len(sys.argv) > 1 else None) or os.environ.get("DATABASE_URL")
     if not raw:
@@ -102,9 +92,52 @@ async def _apply_schema(url: str) -> None:
                 """
             ))
         await conn.run_sync(Base.metadata.create_all)  # missing tables/enums only
-        for stmt in ADD_COLUMNS:
-            await conn.execute(text(stmt))
     await engine.dispose()
+
+
+async def _sync_columns(url: str) -> None:
+    """Add any column the models define but an EXISTING table lacks. create_all
+    skips tables that already exist, so a table left over from an older version
+    of the app misses newer columns (e.g. email_attachments.is_inline,
+    review_tickets transfer fields). Only adds nullable / server-defaulted
+    columns; a NOT NULL column without a server default can't be backfilled, so
+    it's reported and skipped."""
+    import asyncpg
+    from sqlalchemy.dialects import postgresql
+    from sqlalchemy.schema import CreateColumn
+    from models.base import Base
+    import models  # noqa: F401 — register all mappers
+
+    dialect = postgresql.dialect()
+    dsn = url.replace("postgresql+asyncpg://", "postgresql://")
+    conn = await asyncpg.connect(dsn)
+    try:
+        for table in Base.metadata.sorted_tables:
+            exists = await conn.fetchval(
+                "SELECT 1 FROM information_schema.tables "
+                "WHERE table_schema=$1 AND table_name=$2",
+                SCHEMA, table.name,
+            )
+            if not exists:
+                continue  # brand-new tables are created complete by create_all
+            present = {r["column_name"] for r in await conn.fetch(
+                "SELECT column_name FROM information_schema.columns "
+                "WHERE table_schema=$1 AND table_name=$2",
+                SCHEMA, table.name,
+            )}
+            for col in table.columns:
+                if col.name in present:
+                    continue
+                if not col.nullable and col.server_default is None:
+                    print(f"     SKIP {table.name}.{col.name} (NOT NULL без server default)")
+                    continue
+                col_ddl = str(CreateColumn(col).compile(dialect=dialect)).strip()
+                await conn.execute(
+                    f'ALTER TABLE {SCHEMA}."{table.name}" ADD COLUMN IF NOT EXISTS {col_ddl}'
+                )
+                print(f"     + {table.name}.{col.name}")
+    finally:
+        await conn.close()
 
 
 async def _sync_enum_values(url: str) -> None:
@@ -161,8 +194,9 @@ def main() -> None:
     url = _resolve_url()
     target = url.split("@")[-1]  # host:port/db, without credentials
     print(f"Target DB: {target}")
-    print("1/2  Creating missing tables/columns + syncing enum values (existing data untouched)...")
+    print("1/2  Creating missing tables, syncing columns + enum values (existing data untouched)...")
     asyncio.run(_apply_schema(url))
+    asyncio.run(_sync_columns(url))
     asyncio.run(_sync_enum_values(url))
     print("2/2  Stamping alembic to head...")
     asyncio.run(_stamp_head(url))
