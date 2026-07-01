@@ -274,7 +274,11 @@ def _extract_attachments(message, uid: str) -> list[dict]:
             )
         # логотипы/баннеры из подписи (одинаковые байты в каждом письме) — отбрасываем
         if payload_sha256 in SIGNATURE_IMAGE_HASHES:
-            logger.info("Skipping signature image {fn}", fn=filename)
+            logger.info(
+                "SIGNATURE-IMAGE-DROPPED filename={fn} size={sz} sha256={h} uid={uid} "
+                "— логотип подписи отброшен, во вложения/анализ не пойдёт",
+                fn=filename, sz=len(payload), h=payload_sha256, uid=uid,
+            )
             continue
         # inline-картинки берём только достаточно крупные: мелкие — логотипы из подписи
         if is_inline_image and len(payload) < INLINE_IMAGE_MIN_BYTES:
