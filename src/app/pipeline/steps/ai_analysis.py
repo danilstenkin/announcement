@@ -71,10 +71,10 @@ def _normalize_block_spacing(html: str) -> str:
         return html
     # Remove any whitespace/br between closing </div> and opening <div
     html = re.sub(r'</div>\s*(?:<br\s*/?>|\s)*\s*<div', '</div>\n<div', html)
-    # Set uniform margin on all top-level div blocks
+    # Set uniform margin on all top-level div blocks (0 → блоки встык, без зазора)
     html = re.sub(
         r'<div\s+style="[^"]*margin:[^"]*"',
-        lambda m: re.sub(r'margin:\s*[^;"]+', 'margin: 4px 0 0 0', m.group(0)),
+        lambda m: re.sub(r'margin:\s*[^;"]+', 'margin: 0', m.group(0)),
         html,
     )
     # Drop empty paragraphs (blank lines the model sometimes inserts)

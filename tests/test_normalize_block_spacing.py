@@ -45,11 +45,11 @@ def test_consecutive_br_collapsed():
 
 
 def test_div_block_margin_still_normalized():
-    """Existing behaviour: top-level div blocks keep the 4px rhythm."""
+    """Top-level div blocks are normalized to margin: 0 (blocks sit flush)."""
     html = (
         '<div style="background: #F0F4FF; margin: 20px 0 0 0;"><p>a</p></div>'
         '<div style="background: #FFF8E1; margin: 20px 0 0 0;"><p>b</p></div>'
     )
     out = _normalize_block_spacing(html)
-    assert "margin: 4px 0 0 0" in out
+    assert "margin: 0" in out
     assert "margin: 20px" not in out
