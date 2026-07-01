@@ -34,7 +34,7 @@ class AnnouncementUpdate(BaseModel):
     title: Optional[str] = Field(None, min_length=1, max_length=255)
     category: Optional[AnnouncementCategoryEnum] = None
     text: Optional[str] = Field(None, min_length=1)
-    script_kz: Optional[str] = Field(None, min_length=1)
+    script_kz: Optional[str] = Field(None)
     product: Optional[str] = Field(None, max_length=255)
     instruction: Optional[str] = None
     topic: Optional[str] = Field(None, max_length=255)

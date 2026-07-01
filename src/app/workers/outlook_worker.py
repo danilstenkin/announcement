@@ -5,6 +5,7 @@ IMAP IDLE watcher — слушает почтовый ящик и обрабат
 
 import asyncio
 import base64
+import hashlib
 import re
 from contextlib import suppress
 from datetime import datetime
@@ -12,8 +13,6 @@ from email import policy
 from email.parser import BytesParser
 from email.utils import parsedate_to_datetime
 from html import unescape
-
-from aioimaplib import aioimaplib
 
 from pipeline.source import resolve_source
 
@@ -23,7 +22,6 @@ from logger import get_logger
 
 from pipeline import run_pipeline
 from pipeline.context import PipelineContext
-from pipeline.steps.parse_attachments import extract_attachments_text
 
 logger = get_logger(__name__)
 
@@ -31,6 +29,16 @@ logger = get_logger(__name__)
 # чтобы сохранить её и отправить в ИИ. Мелкие inline-картинки — это почти
 # всегда логотипы/иконки из подписи, их пропускаем.
 INLINE_IMAGE_MIN_BYTES = 8 * 1024
+
+# SHA-256 логотипов/баннеров из корпоративных подписей. Они приходят почти в
+# каждом письме (часто как image001.png) и не нужны ни в анализе, ни во
+# вложениях анонса — отбрасываем при приёме. Чтобы добавить новый логотип:
+#   python3 -c "import hashlib,sys;print(hashlib.sha256(open(sys.argv[1],'rb').read()).hexdigest())" logo.png
+SIGNATURE_IMAGE_HASHES: set[str] = {
+    # Логотип Forte (image001.png). Хеш получен из вставленной в чат копии —
+    # если в реальных письмах байты отличаются, добавь хеш файла из MinIO.
+    "97db35bf275bb6ec317823cce12f7bbfbdbc51ecdd06e2b75d911a50cb9041ff",
+}
 
 
 # ── Маппинг email → источник ────────────────────────────
@@ -251,6 +259,20 @@ def _extract_attachments(message, uid: str) -> list[dict]:
         payload = part.get_payload(decode=True)                    # сырые байты файла (base64 → bytes)
         if not payload:
             continue
+        payload_sha256 = hashlib.sha256(payload).hexdigest()       # хеш реальных байтов вложения
+        # Для картинок печатаем sha256 с заметным маркером: отправь письмо с нужным
+        # логотипом, найди строку `SIGNATURE-IMAGE-HASH` в логах и добавь хеш в
+        # SIGNATURE_IMAGE_HASHES выше — тогда логотип будет отбрасываться при приёме.
+        if ct.startswith("image/"):
+            logger.info(
+                "SIGNATURE-IMAGE-HASH sha256={h} filename={fn} size={sz} inline={inl} uid={uid}",
+                h=payload_sha256, fn=filename, sz=len(payload),
+                inl=(disposition == "inline"), uid=uid,
+            )
+        # логотипы/баннеры из подписи (одинаковые байты в каждом письме) — отбрасываем
+        if payload_sha256 in SIGNATURE_IMAGE_HASHES:
+            logger.info("Skipping signature image {fn}", fn=filename)
+            continue
         # inline-картинки берём только достаточно крупные: мелкие — логотипы из подписи
         if is_inline_image and len(payload) < INLINE_IMAGE_MIN_BYTES:
             continue
@@ -284,6 +306,7 @@ async def _connect():
       4. SELECT INBOX  → теперь можем искать и читать письма
     """
     import ssl as _ssl
+    from aioimaplib import aioimaplib
     ssl_context = _ssl.create_default_context()
     ssl_context.check_hostname = False
     ssl_context.verify_mode = _ssl.CERT_NONE
@@ -382,6 +405,7 @@ async def _process_unseen(client):
                     break
 
             # Парсим текст из вложений (pptx и др.) пока data в памяти
+            from pipeline.steps.parse_attachments import extract_attachments_text
             attachments_text = extract_attachments_text(raw_attachments) if raw_attachments else ""
 
             # Загружаем вложения в MinIO (I/O — до пайплайна)

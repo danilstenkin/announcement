@@ -52,8 +52,21 @@ async def collect_email_image_data_urls(
     return urls
 
 
+def _tighten_paragraph(tag: str) -> str:
+    """Force margin:0 on a single <p ...> opening tag so lines sit tight."""
+    style_m = re.search(r'style\s*=\s*"([^"]*)"', tag)
+    if style_m:
+        style = style_m.group(1)
+        if re.search(r'margin\s*:', style):
+            new_style = re.sub(r'margin\s*:\s*[^;"]+;?', 'margin: 0;', style)
+        else:
+            new_style = 'margin: 0;' + style
+        return tag[:style_m.start(1)] + new_style + tag[style_m.end(1):]
+    return re.sub(r'<p\b', '<p style="margin: 0"', tag, count=1)
+
+
 def _normalize_block_spacing(html: str) -> str:
-    """Ensure consistent spacing between top-level div blocks."""
+    """Normalize spacing: uniform gaps between div blocks, tight lines within them."""
     if not html:
         return html
     # Remove any whitespace/br between closing </div> and opening <div
@@ -64,6 +77,12 @@ def _normalize_block_spacing(html: str) -> str:
         lambda m: re.sub(r'margin:\s*[^;"]+', 'margin: 4px 0 0 0', m.group(0)),
         html,
     )
+    # Drop empty paragraphs (blank lines the model sometimes inserts)
+    html = re.sub(r'<p\b[^>]*>(?:\s|&nbsp;|<br\s*/?>)*</p>', '', html)
+    # Collapse runs of <br> into a single break
+    html = re.sub(r'(?:<br\s*/?>\s*){2,}', '<br>', html)
+    # Kill the browser-default <p> margins so lines inside a block don't gap
+    html = re.sub(r'<p\b[^>]*>', lambda m: _tighten_paragraph(m.group(0)), html)
     return html
 
 
