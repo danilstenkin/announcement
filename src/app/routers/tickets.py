@@ -13,6 +13,7 @@ from models.review_ticket import (
 )
 from models.incoming_emails import IncomingEmail, EmailStatusEnum
 from models.email_attachment import EmailAttachment
+from models.ai_category import AiCategoryEnum
 from models.publication import (
     AnnouncementPublication, PublicationKindEnum, PublicationStatusEnum,
 )
@@ -111,6 +112,7 @@ class EditRequest(BaseModel):
     body: Optional[str] = None
     script_ru: Optional[str] = None
     script_kz: Optional[str] = None
+    ai_category: Optional[AiCategoryEnum] = None
 
 
 class RejectRequest(BaseModel):
@@ -448,6 +450,9 @@ async def edit_ticket(
     if req.script_kz is not None and req.script_kz != ticket.script_kz:
         changes["script_kz"] = {"old": ticket.script_kz, "new": req.script_kz}
         ticket.script_kz = req.script_kz
+    if req.ai_category is not None and req.ai_category != ticket.ai_category:
+        changes["ai_category"] = {"old": ticket.ai_category, "new": req.ai_category.value}
+        ticket.ai_category = req.ai_category.value
 
     if changes:
         session.add(ReviewHistory(

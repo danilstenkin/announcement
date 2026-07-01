@@ -4,6 +4,7 @@ from datetime import datetime
 from uuid import UUID
 
 from models.announcement import AnnouncementCategoryEnum
+from models.ai_category import AiCategoryEnum
 
 if TYPE_CHECKING:
     from models.announcement import Announcement
@@ -33,6 +34,7 @@ class AnnouncementUpdate(BaseModel):
     """Schema for updating an announcement."""
     title: Optional[str] = Field(None, min_length=1, max_length=255)
     category: Optional[AnnouncementCategoryEnum] = None
+    ai_category: Optional[AiCategoryEnum] = None
     text: Optional[str] = Field(None, min_length=1)
     script_kz: Optional[str] = Field(None)
     product: Optional[str] = Field(None, max_length=255)

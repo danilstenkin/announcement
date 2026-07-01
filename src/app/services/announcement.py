@@ -173,6 +173,7 @@ class AnnouncementsService:
         update_fields = {
             "title": announcement.title,
             "category": announcement.category,
+            "ai_category": announcement.ai_category,
             "product": announcement.product,
             "text": announcement.text,
             "instruction": announcement.instruction,
