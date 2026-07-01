@@ -27,6 +27,7 @@ async def create_announcement_from_ticket(
     ann = Announcement(
         title=ticket.title,
         category=AnnouncementCategoryEnum.NEW,
+        ai_category=ticket.ai_category,
         text=ticket.body or "",
         script_ru=ticket.script_ru,
         script_kz=ticket.script_kz,
