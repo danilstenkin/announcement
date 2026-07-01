@@ -58,6 +58,7 @@ async def run_pipeline(ctx: PipelineContext):
                     script_ru=ctx.script_ru,
                     script_kz=ctx.script_kz,
                     ai_summary=ctx.ai_summary,
+                    ai_category=ctx.ai_category,
                     source=ctx.source,
                     recommended_publish_at=ctx.recommended_publish_at,
                 )

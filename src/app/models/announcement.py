@@ -31,6 +31,9 @@ class Announcement(Base):
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, index=True)
     title = Column(String(255), nullable=False)
     category = Column(SQLEnum(AnnouncementCategoryEnum, schema="cchub_announcements"), nullable=False)
+    # Тематическая категория от ИИ (Изменения/Инциденты/Качество работы),
+    # независима от category (жизненный цикл: NEW/CHANGE/REVOKED).
+    ai_category = Column(String(50), nullable=True)
     product = Column(String(255), nullable=True)
     text = Column(Text, nullable=False)
     instruction = Column(Text, nullable=True)

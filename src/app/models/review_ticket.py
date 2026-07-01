@@ -57,6 +57,8 @@ class ReviewTicket(Base):
     script_ru = Column(Text, nullable=True)
     script_kz = Column(Text, nullable=True)
     ai_summary = Column(Text, nullable=True)
+    # Тематическая категория от ИИ (Изменения/Инциденты/Качество работы).
+    ai_category = Column(String(50), nullable=True)
     source = Column(String(50), nullable=True)
     recommended_publish_at = Column(DateTime(timezone=True), nullable=True)
     publish_at = Column(DateTime(timezone=True), nullable=True)

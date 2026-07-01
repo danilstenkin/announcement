@@ -15,8 +15,67 @@ from openai import (
 
 from config import settings
 from logger import get_logger
+from models.ai_category import AI_CATEGORY_RULES, AiCategoryEnum
 
 logger = get_logger(__name__)
+
+
+def build_analysis_schema(include_summary: bool) -> dict[str, Any]:
+    """JSON-schema для строгого ответа GPT (response_format=json_schema).
+
+    Вынесено из format_email, чтобы контракт полей можно было тестировать без
+    сетевого вызова.
+    """
+    properties: dict[str, Any] = {
+        "title": {
+            "type": "string",
+            "description": "Краткий заголовок анонса (без Markdown)",
+        },
+        "ai_email": {
+            "type": "string",
+            "description": "Тело анонса с Markdown-разметкой (без заголовка)",
+        },
+        "script_ru": {
+            "type": ["string", "null"],
+            "description": "Скрипт оператора на русском или null",
+        },
+        "script_kz": {
+            "type": ["string", "null"],
+            "description": "Скрипт оператора на казахском или null",
+        },
+        "recommended_publish_date": {
+            "type": ["string", "null"],
+            "description": "Рекомендуемая дата публикации в формате YYYY-MM-DD из текста (например из 'Начало работ'), или null",
+        },
+        "category": {
+            "type": "string",
+            "enum": [e.value for e in AiCategoryEnum],
+            "description": AI_CATEGORY_RULES,
+        },
+    }
+
+    required = [
+        "title",
+        "ai_email",
+        "script_ru",
+        "script_kz",
+        "recommended_publish_date",
+        "category",
+    ]
+
+    if include_summary:
+        properties["ai_summary"] = {
+            "type": "string",
+            "description": "Суть письма одним предложением, максимум 7 слов",
+        }
+        required.append("ai_summary")
+
+    return {
+        "type": "object",
+        "properties": properties,
+        "required": required,
+        "additionalProperties": False,
+    }
 
 
 class GPTError(Exception):
@@ -97,37 +156,7 @@ class GPTClient:
         include_summary: bool = False,
         images: list[str] | None = None,
     ) -> dict[str, Any]:
-        properties: dict[str, Any] = {
-            "title": {
-                "type": "string",
-                "description": "Краткий заголовок анонса (без Markdown)",
-            },
-            "ai_email": {
-                "type": "string",
-                "description": "Тело анонса с Markdown-разметкой (без заголовка)",
-            },
-            "script_ru": {
-                "type": ["string", "null"],
-                "description": "Скрипт оператора на русском или null",
-            },
-            "script_kz": {
-                "type": ["string", "null"],
-                "description": "Скрипт оператора на казахском или null",
-            },
-            "recommended_publish_date": {
-                "type": ["string", "null"],
-                "description": "Рекомендуемая дата публикации в формате YYYY-MM-DD из текста (например из 'Начало работ'), или null",
-            },
-        }
-
-        required = ["title", "ai_email", "script_ru", "script_kz", "recommended_publish_date"]
-
-        if include_summary:
-            properties["ai_summary"] = {
-                "type": "string",
-                "description": "Суть письма одним предложением, максимум 7 слов",
-            }
-            required.append("ai_summary")
+        schema = build_analysis_schema(include_summary)
 
         user_content = (
             "Шаблон оформления:\n"
@@ -148,12 +177,7 @@ class GPTClient:
                 "json_schema": {
                     "name": "email_analysis",
                     "strict": True,
-                    "schema": {
-                        "type": "object",
-                        "properties": properties,
-                        "required": required,
-                        "additionalProperties": False,
-                    },
+                    "schema": schema,
                 },
             },
         }

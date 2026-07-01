@@ -60,6 +60,7 @@ class TicketListOut(BaseModel):
     source: Optional[str] = None
     title: Optional[str] = None
     ai_summary: Optional[str] = None
+    ai_category: Optional[str] = None
     created_at: Optional[str] = None
     updated_at: Optional[str] = None
     display_status: Optional[str] = None
@@ -194,6 +195,7 @@ async def _serialize_ticket_rows(tickets, session: AsyncSession) -> list[TicketL
             source=t.source,
             title=t.title,
             ai_summary=t.ai_summary,
+            ai_category=t.ai_category,
             created_at=t.created_at.isoformat() if t.created_at else None,
             updated_at=t.updated_at.isoformat() if t.updated_at else None,
             display_status=compute_display_status(
@@ -307,6 +309,7 @@ async def get_ticket(
         script_ru=ticket.script_ru,
         script_kz=ticket.script_kz,
         ai_summary=ticket.ai_summary,
+        ai_category=ticket.ai_category,
         original_html_key=email.original_html_key if email else None,
         created_at=ticket.created_at.isoformat() if ticket.created_at else None,
         updated_at=ticket.updated_at.isoformat() if ticket.updated_at else None,

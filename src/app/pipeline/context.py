@@ -36,6 +36,7 @@ class PipelineContext:
     script_ru: str | None = None
     script_kz: str | None = None
     ai_summary: str | None = None
+    ai_category: str | None = None               # тема от ИИ (см. AiCategoryEnum)
     recommended_publish_at: datetime | None = None
 
 

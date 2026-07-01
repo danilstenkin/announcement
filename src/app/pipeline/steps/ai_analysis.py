@@ -147,6 +147,7 @@ async def analyze(ctx: PipelineContext, session: AsyncSession) -> None:
         ctx.ai_email = _normalize_block_spacing(result.get("ai_email", ""))
         ctx.script_ru = _clean_script(result.get("script_ru"))
         ctx.script_kz = _clean_script(result.get("script_kz"))
+        ctx.ai_category = result.get("category")
 
         from pipeline.recommend_date import parse_recommended_date
         ctx.recommended_publish_at = parse_recommended_date(
@@ -169,6 +170,7 @@ async def analyze(ctx: PipelineContext, session: AsyncSession) -> None:
         script_kz=ctx.script_kz,
         ai_title=ctx.ai_title,
         ai_summary=ctx.ai_summary,
+        ai_category=ctx.ai_category,
         recommended_publish_date=ctx.recommended_publish_at,
     )
 

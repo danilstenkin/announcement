@@ -44,6 +44,7 @@ class IncomingEmailOut(BaseModel):
     ai_title: Optional[str] = None
     ai_email: Optional[str] = None
     ai_summary: Optional[str] = None
+    ai_category: Optional[str] = None
     script_ru: Optional[str] = None
     script_kz: Optional[str] = None
     in_knowledge_base: Optional[bool] = None
@@ -164,6 +165,7 @@ async def get_pending_emails(session: AsyncSession = Depends(get_db)):
             ai_title=ai.ai_title if ai else None,
             ai_email=ai.ai_email if ai else None,
             ai_summary=ai.ai_summary if ai else None,
+            ai_category=ai.ai_category if ai else None,
             script_ru=ai.script_ru if ai else None,
             script_kz=ai.script_kz if ai else None,
             in_knowledge_base=ai.in_knowledge_base if ai else None,

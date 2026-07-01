@@ -1,6 +1,6 @@
 import email
 from sqlalchemy.orm import relationship
-from sqlalchemy import Column, Text, ForeignKey, Boolean, DateTime
+from sqlalchemy import Column, Text, ForeignKey, Boolean, DateTime, String
 from sqlalchemy.dialects.postgresql import UUID
 
 from models.announcement import get_astana_time
@@ -25,6 +25,9 @@ class AIEmail(Base):
     script_ru = Column(Text, nullable=True)
     script_kz = Column(Text, nullable=True)
     ai_summary = Column(Text, nullable=True)
+    # Тематическая категория от ИИ (Изменения/Инциденты/Качество работы). См.
+    # AiCategoryEnum. Отдельно от announcements.category (жизненный цикл).
+    ai_category = Column(String(50), nullable=True)
     in_knowledge_base = Column(Boolean, nullable=True)
     recommended_publish_date = Column(DateTime(timezone=True), nullable=True)
     created_at = Column(DateTime(timezone=True), default=get_astana_time, nullable=False)

@@ -38,6 +38,7 @@ async def publish(ctx: PipelineContext, session: AsyncSession):
     announcment = Announcement(
         title=ctx.ai_title,
         category=AnnouncementCategoryEnum.NEW,
+        ai_category=ctx.ai_category,
         text=ctx.ai_email,
         script_ru=ctx.script_ru,
         script_kz=ctx.script_kz,

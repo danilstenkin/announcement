@@ -60,6 +60,7 @@ class AttachmentResponse(BaseModel):
 class AnnouncementResponse(AnnouncementBase):
     """Schema for announcement response."""
     id: UUID
+    ai_category: Optional[str] = None
     is_hidden: bool
     is_revoked: bool
     revoked_link: Optional[str]
@@ -83,6 +84,7 @@ class AnnouncementListResponse(AnnouncementBase):
     text: Optional[str] = None
 
     id: UUID
+    ai_category: Optional[str] = None
     is_hidden: bool
     is_revoked: bool
     revoked_link: Optional[str]
@@ -108,6 +110,7 @@ class AnnouncementListResponse(AnnouncementBase):
             id=announcement.id,
             title=announcement.title,
             category=announcement.category,
+            ai_category=announcement.ai_category,
             product=announcement.product,
             text=announcement.text if not announcement.is_revoked else None,
             instruction=announcement.instruction,
